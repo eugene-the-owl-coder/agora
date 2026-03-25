@@ -1,13 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import nacl from 'tweetnacl';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { config } from '../config';
 import { verifyApiKey } from '../utils/apiKey';
 import { AppError } from './errorHandler';
 import { logger } from '../utils/logger';
 
-const prisma = new PrismaClient();
 
 // Extend Express Request
 declare global {

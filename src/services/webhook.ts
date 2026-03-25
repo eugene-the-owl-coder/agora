@@ -1,9 +1,8 @@
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 
-const prisma = new PrismaClient();
 
 export async function dispatchWebhook(
   event: string,

@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient, Prisma, Prisma as P } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { createListingSchema, updateListingSchema, searchListingsSchema } from '../validators/listings';
@@ -9,7 +10,6 @@ import { runMatchingEngine } from '../services/matching';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // POST / — create listing
 router.post('/', authenticate, requireScope('list'), async (req: Request, res: Response, next: NextFunction) => {

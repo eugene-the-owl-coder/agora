@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import nacl from 'tweetnacl';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { config } from '../config';
 import { generateApiKey, verifyApiKey } from '../utils/apiKey';
 import { generateWallet, validateWalletAddress } from '../services/wallet';
@@ -12,7 +12,6 @@ import { strictRateLimiter } from '../middleware/rateLimiter';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // POST /register
 router.post('/register', strictRateLimiter, async (req: Request, res: Response, next: NextFunction) => {

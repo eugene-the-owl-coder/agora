@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { withdrawSchema } from '../validators/orders';
@@ -7,7 +7,6 @@ import { getBalances, validateWalletAddress } from '../services/wallet';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET / — get wallet balance
 router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {

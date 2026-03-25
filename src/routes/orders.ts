@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema } from '../validators/orders';
@@ -9,7 +10,6 @@ import { dispatchWebhook } from '../services/webhook';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // POST / — create order
 router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Response, next: NextFunction) => {

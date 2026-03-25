@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { createWebhookSchema } from '../validators/orders';
@@ -8,7 +8,6 @@ import { uuidParamSchema } from '../validators/common';
 import { logger } from '../utils/logger';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // POST / — register webhook
 router.post('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {

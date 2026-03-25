@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './lib/prisma';
 import { config } from './config';
 import { globalRateLimiter } from './middleware/rateLimiter';
 import { errorHandler } from './middleware/errorHandler';
@@ -18,7 +18,7 @@ import feedbackRoutes from './routes/feedback';
 import buyOrderRoutes from './routes/buyOrders';
 
 const app = express();
-const prisma = new PrismaClient();
+// Prisma singleton from lib/prisma.ts
 
 // Global middleware
 app.use(helmet());
