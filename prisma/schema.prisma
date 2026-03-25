@@ -107,15 +107,19 @@ model Order {
   status          OrderStatus @default(created)
   shippingInfo    Json?
   trackingNumber  String?
+  carrier         String?
+  tier            Int         @default(1)
   disputeReason   String?
+  deliveredAt     DateTime?
   resolvedAt      DateTime?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  listing         Listing       @relation(fields: [listingId], references: [id])
-  buyer           Agent         @relation("BuyerOrders", fields: [buyerAgentId], references: [id])
-  seller          Agent         @relation("SellerOrders", fields: [sellerAgentId], references: [id])
+  listing         Listing        @relation(fields: [listingId], references: [id])
+  buyer           Agent          @relation("BuyerOrders", fields: [buyerAgentId], references: [id])
+  seller          Agent          @relation("SellerOrders", fields: [sellerAgentId], references: [id])
   transactions    Transaction[]
+  trackingEvents  TrackingEvent[]
 
   @@index([buyerAgentId])
   @@index([sellerAgentId])
@@ -192,6 +196,24 @@ model FeatureRequest {
 
   @@index([votes])
   @@index([status])
+}
+
+model TrackingEvent {
+  id          String   @id
+  orderId     String
+  carrier     String
+  status      String
+  description String
+  location    String?
+  occurredAt  DateTime
+  rawData     Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  order       Order    @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@index([carrier])
+  @@index([occurredAt])
 }
 
 enum BuyOrderStatus {

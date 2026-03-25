@@ -72,7 +72,7 @@ export class FedExTracker implements CarrierTracker {
       throw new Error(`FedEx auth failed: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data = await res.json() as { access_token: string; expires_in: number };
     this.token = {
       accessToken: data.access_token,
       // Expire 5 minutes early to avoid race conditions

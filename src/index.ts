@@ -16,6 +16,8 @@ import walletRoutes from './routes/wallet';
 import webhookRoutes from './routes/webhooks';
 import feedbackRoutes from './routes/feedback';
 import buyOrderRoutes from './routes/buyOrders';
+import trackingRoutes from './routes/tracking';
+import { getTrackingOracle } from './services/trackingOracle';
 
 const app = express();
 // Prisma singleton from lib/prisma.ts
@@ -77,6 +79,7 @@ app.use('/api/v1/wallet', walletRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/feedback', feedbackRoutes);
 app.use('/api/v1/buy-orders', buyOrderRoutes);
+app.use('/api/v1/orders', trackingRoutes);
 
 // 404 handler
 app.use((_req, res) => {
@@ -103,6 +106,18 @@ async function main() {
         env: config.nodeEnv,
         port: config.port,
       });
+
+      // Start tracking oracle in background
+      if (config.nodeEnv !== 'test') {
+        try {
+          const oracle = getTrackingOracle();
+          oracle.start();
+        } catch (err) {
+          logger.warn('Tracking oracle failed to start (continuing without it)', {
+            error: (err as Error).message,
+          });
+        }
+      }
     });
   } catch (err) {
     logger.error('Failed to start server', { error: (err as Error).message });

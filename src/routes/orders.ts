@@ -5,7 +5,7 @@ import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema } from '../validators/orders';
 import { uuidParamSchema } from '../validators/common';
-import { createEscrow, releaseEscrow, refundEscrow } from '../services/escrow';
+import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
 import { logger } from '../utils/logger';
 
