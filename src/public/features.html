@@ -37,6 +37,7 @@
       </div>
       <div class="flex items-center gap-6 text-sm">
         <a href="/" class="text-gray-400 hover:text-white transition">Home</a>
+        <a href="/marketplace.html" class="text-gray-400 hover:text-white transition">Marketplace</a>
         <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
       </div>
     </div>
@@ -156,11 +157,14 @@
       const statusClass = `status-${fr.status}`;
       const date = new Date(fr.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const agentName = fr.agent?.name || 'Anonymous';
+      const desc = escapeHtml(fr.description);
+      const isLong = desc.length > 200;
+      const truncated = isLong ? desc.slice(0, 200) + '...' : desc;
 
       return `
         <div class="bg-white/5 border border-white/10 rounded-xl p-6 card-glow fade-in flex gap-6">
           <div class="flex-shrink-0">
-            <button onclick="vote('${fr.id}')" 
+            <button onclick="event.stopPropagation(); vote('${fr.id}')" 
                     class="vote-btn flex flex-col items-center gap-1 px-3 py-2 rounded-lg border border-white/10 ${voted ? 'voted' : 'hover:border-white/25'}"
                     id="vote-${fr.id}" ${voted ? 'disabled' : ''}>
               <svg class="w-4 h-4 ${voted ? 'text-indigo-400' : 'text-gray-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,17 +173,37 @@
               <span class="text-lg font-bold ${voted ? 'text-indigo-400' : 'text-gray-300'}" id="count-${fr.id}">${fr.votes}</span>
             </button>
           </div>
-          <div class="flex-1 min-w-0">
+          <div class="flex-1 min-w-0 ${isLong ? 'cursor-pointer' : ''}" ${isLong ? `onclick="toggleDescription('${fr.id}')"` : ''}>
             <div class="flex items-center gap-3 mb-2">
               <h3 class="text-lg font-semibold truncate">${escapeHtml(fr.title)}</h3>
               <span class="text-xs px-2 py-0.5 rounded-full ${statusClass} capitalize flex-shrink-0">${fr.status}</span>
             </div>
-            <p class="text-gray-400 text-sm mb-3 line-clamp-2">${escapeHtml(fr.description)}</p>
+            <p class="text-gray-400 text-sm mb-3 leading-relaxed" id="desc-${fr.id}" data-full="${desc}" data-truncated="${truncated}" data-expanded="false">${truncated}</p>
+            ${isLong ? `<button onclick="event.stopPropagation(); toggleDescription('${fr.id}')" class="text-xs text-indigo-400 hover:text-indigo-300 transition mb-3" id="toggle-${fr.id}">Show more ▾</button>` : ''}
             <div class="text-xs text-gray-600">
               by <span class="text-gray-500">${escapeHtml(agentName)}</span> · ${date}
             </div>
           </div>
         </div>`;
+    }
+
+    // ─── Toggle Description ────────────────────────────────────
+
+    function toggleDescription(id) {
+      const el = document.getElementById(`desc-${id}`);
+      const btn = document.getElementById(`toggle-${id}`);
+      if (!el || !btn) return;
+
+      const expanded = el.dataset.expanded === 'true';
+      if (expanded) {
+        el.textContent = el.dataset.truncated;
+        el.dataset.expanded = 'false';
+        btn.textContent = 'Show more ▾';
+      } else {
+        el.textContent = el.dataset.full;
+        el.dataset.expanded = 'true';
+        btn.textContent = 'Show less ▴';
+      }
     }
 
     // ─── Submit ─────────────────────────────────────────────────

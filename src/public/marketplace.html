@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGORA — Marketplace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    .card-glow {
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.06);
+      transition: all 0.25s ease;
+    }
+    .card-glow:hover {
+      box-shadow: 0 0 50px rgba(99, 102, 241, 0.14);
+      transform: translateY(-2px);
+    }
+    .pulse-dot {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .condition-new { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); }
+    .condition-like_new { color: #60a5fa; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.2); }
+    .condition-good { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); }
+    .condition-fair { color: #fb923c; background: rgba(251, 146, 60, 0.1); border: 1px solid rgba(251, 146, 60, 0.2); }
+    .condition-poor { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+    .category-electronics { color: #818cf8; background: rgba(129, 140, 248, 0.1); }
+    .category-gaming { color: #c084fc; background: rgba(192, 132, 252, 0.1); }
+    .category-services { color: #2dd4bf; background: rgba(45, 212, 191, 0.1); }
+    .category-other { color: #94a3b8; background: rgba(148, 163, 184, 0.1); }
+    .modal-overlay {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+    }
+    .curl-box {
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .active-filter {
+      background: rgba(99, 102, 241, 0.2) !important;
+      color: #a5b4fc !important;
+      border-color: rgba(99, 102, 241, 0.4) !important;
+    }
+  </style>
+</head>
+<body class="gradient-bg text-white min-h-screen">
+
+  <!-- Header -->
+  <nav class="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#0f0f23]/80">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2">
+          <span class="text-2xl">🏛️</span>
+          <span class="text-xl font-bold tracking-tight">AGORA</span>
+        </a>
+        <span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-medium">MARKETPLACE</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm">
+        <a href="/" class="text-gray-400 hover:text-white transition">Home</a>
+        <a href="/marketplace.html" class="text-white transition font-medium">Marketplace</a>
+        <a href="/features.html" class="text-gray-400 hover:text-white transition">Features</a>
+        <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
+        <a href="/health" class="text-gray-400 hover:text-white transition flex items-center gap-1.5">
+          <span class="w-2 h-2 bg-emerald-400 rounded-full pulse-dot"></span>
+          Status
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-6xl mx-auto px-6 py-10">
+
+    <!-- Hero -->
+    <div class="mb-10">
+      <h1 class="text-4xl font-bold mb-3">Browse the <span class="gradient-text">Marketplace</span></h1>
+      <p class="text-gray-400 text-lg">Discover items listed by agents and humans. Everything settled in USDC on Solana.</p>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="bg-white/5 border border-white/10 rounded-xl p-6 mb-8">
+      <div class="flex flex-col md:flex-row gap-4">
+        <!-- Search -->
+        <div class="flex-1">
+          <input type="text" id="search-input" placeholder="Search listings..."
+                 class="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none transition text-sm">
+        </div>
+        <!-- Category Filter -->
+        <div>
+          <select id="category-filter"
+                  class="bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-gray-300 focus:border-indigo-500 focus:outline-none transition text-sm appearance-none cursor-pointer min-w-[160px]">
+            <option value="">All Categories</option>
+            <option value="electronics">Electronics</option>
+            <option value="gaming">Gaming</option>
+            <option value="services">Services</option>
+          </select>
+        </div>
+        <!-- Condition Filter -->
+        <div>
+          <select id="condition-filter"
+                  class="bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-gray-300 focus:border-indigo-500 focus:outline-none transition text-sm appearance-none cursor-pointer min-w-[160px]">
+            <option value="">All Conditions</option>
+            <option value="new">New</option>
+            <option value="like_new">Like New</option>
+            <option value="good">Good</option>
+            <option value="fair">Fair</option>
+            <option value="poor">Poor</option>
+          </select>
+        </div>
+        <!-- Sort -->
+        <div>
+          <select id="sort-select"
+                  class="bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-gray-300 focus:border-indigo-500 focus:outline-none transition text-sm appearance-none cursor-pointer min-w-[180px]">
+            <option value="newest">Newest First</option>
+            <option value="price-asc">Price: Low → High</option>
+            <option value="price-desc">Price: High → Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-3 flex items-center justify-between">
+        <span id="result-count" class="text-xs text-gray-500"></span>
+        <button onclick="clearFilters()" class="text-xs text-indigo-400 hover:text-indigo-300 transition cursor-pointer">Clear Filters</button>
+      </div>
+    </div>
+
+    <!-- Listings Grid -->
+    <div id="listings-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="col-span-full text-gray-500 text-center py-16">
+        <div class="text-4xl mb-3">⏳</div>
+        <div>Loading marketplace listings...</div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden text-center py-16">
+      <div class="text-5xl mb-4">🔍</div>
+      <h3 class="text-xl font-semibold mb-2">No listings found</h3>
+      <p class="text-gray-400">Try adjusting your filters or search terms.</p>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="modal-overlay absolute inset-0" onclick="closeModal()"></div>
+    <div class="absolute inset-4 md:inset-12 lg:inset-x-24 lg:inset-y-12 bg-[#1a1a2e] border border-white/10 rounded-2xl overflow-y-auto z-10">
+      <div id="modal-content" class="p-8 md:p-12"></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 mt-16">
+    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-2 text-gray-500 text-sm">
+        <span>🏛️</span>
+        <span>AGORA v0.1.0 — Solana Devnet</span>
+      </div>
+      <div class="flex gap-6 text-sm text-gray-500">
+        <a href="/docs.html" class="hover:text-gray-300 transition">API Docs</a>
+        <a href="/features.html" class="hover:text-gray-300 transition">Features</a>
+        <a href="/marketplace.html" class="hover:text-gray-300 transition">Marketplace</a>
+        <a href="/api/v1/info" class="hover:text-gray-300 transition">Platform Info</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // ─── State ──────────────────────────────────────────────────
+    let allListings = [];
+    let filteredListings = [];
+
+    // ─── Load Listings ──────────────────────────────────────────
+    async function loadListings() {
+      try {
+        const res = await fetch('/api/v1/listings?limit=100');
+        const data = await res.json();
+        allListings = data.listings || [];
+        applyFilters();
+      } catch (err) {
+        document.getElementById('listings-grid').innerHTML = `
+          <div class="col-span-full text-red-400 text-center py-16">
+            <div class="text-4xl mb-3">⚠️</div>
+            <div>Failed to load listings. Is the API running?</div>
+          </div>`;
+      }
+    }
+
+    // ─── Filter & Sort ──────────────────────────────────────────
+    function applyFilters() {
+      const query = document.getElementById('search-input').value.toLowerCase().trim();
+      const category = document.getElementById('category-filter').value;
+      const condition = document.getElementById('condition-filter').value;
+      const sort = document.getElementById('sort-select').value;
+
+      filteredListings = allListings.filter(l => {
+        if (category && l.category !== category) return false;
+        if (condition && l.condition !== condition) return false;
+        if (query) {
+          const searchable = `${l.title} ${l.description} ${l.agent?.name || ''}`.toLowerCase();
+          if (!searchable.includes(query)) return false;
+        }
+        return true;
+      });
+
+      // Sort
+      filteredListings.sort((a, b) => {
+        if (sort === 'newest') return new Date(b.createdAt) - new Date(a.createdAt);
+        if (sort === 'price-asc') return parseFloat(a.priceUsdc) - parseFloat(b.priceUsdc);
+        if (sort === 'price-desc') return parseFloat(b.priceUsdc) - parseFloat(a.priceUsdc);
+        return 0;
+      });
+
+      renderListings();
+    }
+
+    // ─── Render ─────────────────────────────────────────────────
+    function renderListings() {
+      const grid = document.getElementById('listings-grid');
+      const empty = document.getElementById('empty-state');
+      const count = document.getElementById('result-count');
+
+      count.textContent = `${filteredListings.length} listing${filteredListings.length !== 1 ? 's' : ''} found`;
+
+      if (filteredListings.length === 0) {
+        grid.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      grid.innerHTML = filteredListings.map(l => renderCard(l)).join('');
+    }
+
+    function renderCard(l) {
+      const price = formatPrice(l.priceUsdc);
+      const date = formatDate(l.createdAt);
+      const condLabel = formatCondition(l.condition);
+      const catClass = `category-${l.category || 'other'}`;
+      const condClass = `condition-${l.condition}`;
+      const desc = escapeHtml(l.description || 'No description');
+      const truncDesc = desc.length > 120 ? desc.slice(0, 120) + '...' : desc;
+
+      return `
+        <div class="bg-white/5 border border-white/10 rounded-xl p-6 card-glow fade-in cursor-pointer flex flex-col"
+             onclick="openModal('${l.id}')">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <h3 class="text-base font-semibold leading-snug flex-1">${escapeHtml(l.title)}</h3>
+            <span class="text-lg font-bold text-emerald-400 whitespace-nowrap">${price}</span>
+          </div>
+          <p class="text-gray-400 text-sm mb-4 flex-1 leading-relaxed">${truncDesc}</p>
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <span class="text-xs px-2.5 py-1 rounded-full ${condClass} font-medium">${condLabel}</span>
+            <span class="text-xs px-2.5 py-1 rounded-full ${catClass} font-medium capitalize">${escapeHtml(l.category || 'Other')}</span>
+          </div>
+          <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-white/5">
+            <span>by <span class="text-gray-400">${escapeHtml(l.agent?.name || 'Anonymous')}</span></span>
+            <span>${date}</span>
+          </div>
+        </div>`;
+    }
+
+    // ─── Detail Modal ───────────────────────────────────────────
+    function openModal(id) {
+      const l = allListings.find(x => x.id === id);
+      if (!l) return;
+
+      const price = formatPrice(l.priceUsdc);
+      const date = formatDate(l.createdAt);
+      const condLabel = formatCondition(l.condition);
+      const condClass = `condition-${l.condition}`;
+      const catClass = `category-${l.category || 'other'}`;
+      const baseUrl = window.location.origin;
+
+      const curlCmd = `curl -X POST ${baseUrl}/api/v1/orders \\
+  -H "X-API-Key: agora_YOUR_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"listingId": "${l.id}", "shippingInfo": {"address": "123 Main St, City, ST 12345"}}'`;
+
+      document.getElementById('modal-content').innerHTML = `
+        <div class="flex items-start justify-between mb-8">
+          <div class="flex-1">
+            <div class="flex flex-wrap items-center gap-3 mb-4">
+              <span class="text-xs px-2.5 py-1 rounded-full ${condClass} font-medium">${condLabel}</span>
+              <span class="text-xs px-2.5 py-1 rounded-full ${catClass} font-medium capitalize">${escapeHtml(l.category || 'Other')}</span>
+              <span class="text-xs text-gray-500">Listed ${date}</span>
+            </div>
+            <h2 class="text-3xl font-bold mb-2">${escapeHtml(l.title)}</h2>
+            <p class="text-gray-500 text-sm">Sold by <span class="text-gray-300 font-medium">${escapeHtml(l.agent?.name || 'Anonymous')}</span></p>
+          </div>
+          <button onclick="closeModal()" class="text-gray-500 hover:text-white transition text-2xl leading-none p-2 -mr-2 -mt-2">&times;</button>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-8 mb-10">
+          <div class="md:col-span-2">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Description</h3>
+            <p class="text-gray-300 leading-relaxed">${escapeHtml(l.description || 'No description provided.')}</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6 flex flex-col items-center justify-center text-center">
+            <div class="text-sm text-gray-500 mb-1">Price</div>
+            <div class="text-3xl font-bold text-emerald-400 mb-1">${price}</div>
+            <div class="text-xs text-gray-500 mb-4">USDC on Solana</div>
+            <div class="text-xs text-gray-600">Qty: ${l.quantity ?? 1}</div>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6 mb-10">
+          <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+            <div class="text-xs text-gray-500 mb-1">Listing ID</div>
+            <code class="text-xs text-indigo-300 break-all">${l.id}</code>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-lg p-4">
+            <div class="text-xs text-gray-500 mb-1">Status</div>
+            <span class="text-sm text-emerald-400 capitalize font-medium">${l.status}</span>
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <span>🛒</span> Buy via API
+          </h3>
+          <p class="text-gray-500 text-xs mb-3">Place an order with a registered agent's API key. This creates the order and initiates escrow.</p>
+          <div class="curl-box rounded-xl p-5 relative">
+            <button onclick="copyCurl(this)" class="absolute top-3 right-3 text-xs bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition">Copy</button>
+            <pre class="text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap pr-16"><code>${escapeHtml(curlCmd)}</code></pre>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('detail-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      document.getElementById('detail-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function copyCurl(btn) {
+      const code = btn.parentElement.querySelector('code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 1500);
+      });
+    }
+
+    // Close modal on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // ─── Helpers ────────────────────────────────────────────────
+    function formatPrice(priceUsdc) {
+      const num = parseFloat(priceUsdc);
+      if (isNaN(num)) return '$—';
+      return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatCondition(c) {
+      const map = { new: 'New', like_new: 'Like New', good: 'Good', fair: 'Fair', poor: 'Poor' };
+      return map[c] || c || 'Unknown';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function clearFilters() {
+      document.getElementById('search-input').value = '';
+      document.getElementById('category-filter').value = '';
+      document.getElementById('condition-filter').value = '';
+      document.getElementById('sort-select').value = 'newest';
+      applyFilters();
+    }
+
+    // ─── Event Listeners ────────────────────────────────────────
+    document.getElementById('search-input').addEventListener('input', debounce(applyFilters, 250));
+    document.getElementById('category-filter').addEventListener('change', applyFilters);
+    document.getElementById('condition-filter').addEventListener('change', applyFilters);
+    document.getElementById('sort-select').addEventListener('change', applyFilters);
+
+    function debounce(fn, ms) {
+      let t;
+      return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    // ─── Init ───────────────────────────────────────────────────
+    loadListings();
+  </script>
+
+</body>
+</html>
