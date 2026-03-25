@@ -36,8 +36,16 @@ export const config = {
     sandbox: process.env.CANADA_POST_SANDBOX !== 'false', // default true (sandbox)
   },
 
+  fedex: {
+    clientId: process.env.FEDEX_CLIENT_ID || '',
+    clientSecret: process.env.FEDEX_CLIENT_SECRET || '',
+    accountNumber: process.env.FEDEX_ACCOUNT_NUMBER || '',
+    sandbox: process.env.FEDEX_SANDBOX !== 'false', // default true (sandbox)
+  },
+
   shipping: {
     cadToUsdcRate: parseFloat(process.env.CAD_TO_USDC_RATE || '0.73'),
+    carrier: (process.env.SHIPPING_CARRIER || 'fedex') as 'fedex' | 'canadapost',
   },
 
   tracking: {
