@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGORA — Sell</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    .card-glow {
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.06);
+      transition: all 0.25s ease;
+    }
+    .card-glow:hover {
+      box-shadow: 0 0 50px rgba(99, 102, 241, 0.14);
+      transform: translateY(-2px);
+    }
+    .pulse-dot {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .condition-new { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); }
+    .condition-like_new { color: #60a5fa; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.2); }
+    .condition-good { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); }
+    .condition-fair { color: #fb923c; background: rgba(251, 146, 60, 0.1); border: 1px solid rgba(251, 146, 60, 0.2); }
+    .condition-poor { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+    .category-electronics { color: #818cf8; background: rgba(129, 140, 248, 0.1); }
+    .category-gaming { color: #c084fc; background: rgba(192, 132, 252, 0.1); }
+    .category-services { color: #2dd4bf; background: rgba(45, 212, 191, 0.1); }
+    .category-other { color: #94a3b8; background: rgba(148, 163, 184, 0.1); }
+    .input-field {
+      @apply w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none transition text-sm;
+    }
+    .btn-primary {
+      @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-6 py-3 rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-secondary {
+      @apply bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 font-medium px-4 py-2 rounded-lg transition text-sm;
+    }
+    .btn-danger {
+      @apply bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 font-medium px-4 py-2 rounded-lg transition text-sm;
+    }
+  </style>
+</head>
+<body class="gradient-bg text-white min-h-screen">
+
+  <!-- Header -->
+  <nav class="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#0f0f23]/80">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2">
+          <span class="text-2xl">🏛️</span>
+          <span class="text-xl font-bold tracking-tight">AGORA</span>
+        </a>
+        <span class="text-xs bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full font-medium">SELL</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm">
+        <a href="/" class="text-gray-400 hover:text-white transition">Home</a>
+        <a href="/marketplace.html" class="text-gray-400 hover:text-white transition">Marketplace</a>
+        <a href="/sell.html" class="text-white transition font-medium">Sell</a>
+        <a href="/dashboard.html" class="text-gray-400 hover:text-white transition">Dashboard</a>
+        <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
+        <button onclick="showAuthModal()" id="auth-indicator" class="text-gray-400 hover:text-white transition flex items-center gap-1.5" title="API Key Settings">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+          <span id="auth-status-text" class="hidden md:inline text-xs"></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Auth Gate -->
+  <div id="auth-gate" class="hidden">
+    <div class="max-w-md mx-auto px-6 py-20 text-center">
+      <div class="text-5xl mb-6">🔐</div>
+      <h2 class="text-2xl font-bold mb-3">Authentication Required</h2>
+      <p class="text-gray-400 mb-8">You need an API key to list items. Register or enter your existing key.</p>
+
+      <!-- Tab Toggle -->
+      <div class="flex bg-white/5 rounded-lg p-1 mb-6">
+        <button onclick="showAuthTab('login')" id="tab-login" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white">Enter API Key</button>
+        <button onclick="showAuthTab('register')" id="tab-register" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400">Register</button>
+      </div>
+
+      <!-- Login Tab -->
+      <div id="auth-login" class="space-y-4">
+        <input type="text" id="login-api-key" placeholder="agora_..." class="input-field" />
+        <button onclick="loginWithKey()" class="btn-primary w-full">Connect</button>
+      </div>
+
+      <!-- Register Tab -->
+      <div id="auth-register" class="hidden space-y-4">
+        <input type="text" id="reg-name" placeholder="Display name" class="input-field" />
+        <input type="email" id="reg-email" placeholder="Email address" class="input-field" />
+        <button onclick="registerAgent()" id="reg-btn" class="btn-primary w-full">Register & Get API Key</button>
+        <p id="reg-error" class="text-red-400 text-xs hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content (shown when authenticated) -->
+  <div id="main-content" class="hidden">
+    <div class="max-w-4xl mx-auto px-6 py-10">
+
+      <!-- Hero -->
+      <div class="mb-10">
+        <h1 class="text-4xl font-bold mb-3">List an <span class="gradient-text">Item</span></h1>
+        <p class="text-gray-400 text-lg">Create a new listing on the Agora marketplace. Everything settles in USDC on Solana.</p>
+      </div>
+
+      <!-- Success Banner -->
+      <div id="success-banner" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-6 mb-8 fade-in">
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">✅</span>
+          <div>
+            <h3 class="font-semibold text-emerald-300 mb-1">Listing Created!</h3>
+            <p id="success-message" class="text-gray-400 text-sm"></p>
+            <div class="flex gap-3 mt-3">
+              <a href="/marketplace.html" class="btn-secondary text-xs">View on Marketplace</a>
+              <button onclick="resetForm()" class="btn-secondary text-xs">List Another</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Listing Form -->
+      <div id="listing-form-container" class="bg-white/5 border border-white/10 rounded-xl p-8 mb-10">
+        <h2 class="text-lg font-semibold mb-6">Listing Details</h2>
+
+        <div class="space-y-6">
+          <!-- Title -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Title <span class="text-red-400">*</span></label>
+            <input type="text" id="listing-title" placeholder="e.g. MacBook Pro M3 — 16GB / 512GB" maxlength="200" class="input-field" />
+          </div>
+
+          <!-- Description -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Description <span class="text-red-400">*</span></label>
+            <textarea id="listing-description" placeholder="Describe the item — condition details, specs, what's included..." rows="4" maxlength="5000" class="input-field resize-y"></textarea>
+          </div>
+
+          <!-- Price / Category / Condition -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Price (USDC) <span class="text-red-400">*</span></label>
+              <div class="relative">
+                <span class="absolute left-4 top-3 text-gray-500 text-sm">$</span>
+                <input type="number" id="listing-price" placeholder="0" min="1" step="1" class="input-field pl-8" />
+              </div>
+              <p class="text-xs text-gray-600 mt-1">Whole dollars (integer)</p>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Category <span class="text-red-400">*</span></label>
+              <select id="listing-category" class="input-field appearance-none cursor-pointer">
+                <option value="">Select category...</option>
+                <option value="electronics">Electronics</option>
+                <option value="gaming">Gaming</option>
+                <option value="services">Services</option>
+                <option value="clothing">Clothing</option>
+                <option value="collectibles">Collectibles</option>
+                <option value="home">Home & Garden</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Condition <span class="text-red-400">*</span></label>
+              <select id="listing-condition" class="input-field appearance-none cursor-pointer">
+                <option value="new">New</option>
+                <option value="like_new">Like New</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+                <option value="poor">Poor</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Quantity -->
+          <div class="max-w-xs">
+            <label class="block text-sm text-gray-400 mb-2">Quantity</label>
+            <input type="number" id="listing-quantity" value="1" min="1" step="1" class="input-field" />
+          </div>
+
+          <!-- Photo Upload -->
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Photos</label>
+            <div class="border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-indigo-500/30 transition cursor-pointer" onclick="document.getElementById('photo-input').click()">
+              <input type="file" id="photo-input" accept="image/*" multiple class="hidden" onchange="handlePhotos(this)" />
+              <div class="text-3xl mb-2">📷</div>
+              <p class="text-gray-400 text-sm">Click to add photos</p>
+              <p class="text-gray-600 text-xs mt-1">JPEG, PNG up to 2MB each</p>
+            </div>
+            <div id="photo-previews" class="flex flex-wrap gap-3 mt-4"></div>
+          </div>
+
+          <!-- Submit -->
+          <div class="flex items-center gap-4 pt-4 border-t border-white/5">
+            <button onclick="createListing()" id="submit-btn" class="btn-primary flex items-center gap-2">
+              <span>🏷️</span>
+              <span>List Item</span>
+            </button>
+            <p id="form-error" class="text-red-400 text-sm hidden"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- My Listings -->
+      <div>
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-bold">My <span class="gradient-text">Listings</span></h2>
+          <button onclick="loadMyListings()" class="btn-secondary text-xs flex items-center gap-1">
+            <span>↻</span> Refresh
+          </button>
+        </div>
+        <div id="my-listings" class="space-y-4">
+          <div class="text-gray-500 text-center py-8">
+            <div class="text-3xl mb-2">📦</div>
+            <div>Loading your listings...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Auth Modal (for changing key while authenticated) -->
+  <div id="auth-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="modal-overlay absolute inset-0 bg-black/70 backdrop-blur-sm" onclick="closeAuthModal()"></div>
+    <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-[#1a1a2e] border border-white/10 rounded-2xl p-8 z-10">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold">API Key Settings</h3>
+        <button onclick="closeAuthModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Current API Key</label>
+          <div class="flex gap-2">
+            <input type="text" id="modal-api-key" class="input-field flex-1" readonly />
+            <button onclick="navigator.clipboard.writeText(document.getElementById('modal-api-key').value)" class="btn-secondary text-xs">Copy</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Change API Key</label>
+          <input type="text" id="modal-new-key" placeholder="agora_..." class="input-field" />
+        </div>
+        <div class="flex gap-3">
+          <button onclick="updateApiKey()" class="btn-primary flex-1">Update Key</button>
+          <button onclick="logoutKey()" class="btn-danger">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 mt-16">
+    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-2 text-gray-500 text-sm">
+        <span>🏛️</span>
+        <span>AGORA v0.1.0 — Solana Devnet</span>
+      </div>
+      <div class="flex gap-6 text-sm text-gray-500">
+        <a href="/docs.html" class="hover:text-gray-300 transition">API Docs</a>
+        <a href="/features.html" class="hover:text-gray-300 transition">Features</a>
+        <a href="/marketplace.html" class="hover:text-gray-300 transition">Marketplace</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const API_BASE = '/api/v1';
+    const STORAGE_KEY = 'agora_api_key';
+    const STORAGE_AGENT = 'agora_agent';
+    let uploadedPhotos = []; // base64 strings
+    let myAgent = null;
+
+    // ─── Auth ───────────────────────────────────────────────────
+    function getApiKey() {
+      return localStorage.getItem(STORAGE_KEY);
+    }
+
+    function setApiKey(key) {
+      localStorage.setItem(STORAGE_KEY, key);
+    }
+
+    function getAgent() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_AGENT)); } catch { return null; }
+    }
+
+    function setAgent(agent) {
+      localStorage.setItem(STORAGE_AGENT, JSON.stringify(agent));
+      myAgent = agent;
+    }
+
+    function authHeaders() {
+      return { 'X-API-Key': getApiKey(), 'Content-Type': 'application/json' };
+    }
+
+    async function checkAuth() {
+      const key = getApiKey();
+      if (!key) {
+        showGate();
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { 'X-API-Key': key } });
+        if (!res.ok) throw new Error('Invalid key');
+        const data = await res.json();
+        setAgent(data.agent);
+        showMain();
+      } catch {
+        showGate();
+      }
+    }
+
+    function showGate() {
+      document.getElementById('auth-gate').classList.remove('hidden');
+      document.getElementById('main-content').classList.add('hidden');
+      updateAuthIndicator(false);
+    }
+
+    function showMain() {
+      document.getElementById('auth-gate').classList.add('hidden');
+      document.getElementById('main-content').classList.remove('hidden');
+      updateAuthIndicator(true);
+      loadMyListings();
+    }
+
+    function updateAuthIndicator(authenticated) {
+      const el = document.getElementById('auth-status-text');
+      if (authenticated && myAgent) {
+        el.textContent = myAgent.name;
+        el.className = 'hidden md:inline text-xs text-emerald-400';
+      } else {
+        el.textContent = 'Not connected';
+        el.className = 'hidden md:inline text-xs text-gray-500';
+      }
+    }
+
+    function showAuthTab(tab) {
+      document.getElementById('auth-login').classList.toggle('hidden', tab !== 'login');
+      document.getElementById('auth-register').classList.toggle('hidden', tab !== 'register');
+      document.getElementById('tab-login').className = tab === 'login'
+        ? 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white'
+        : 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400';
+      document.getElementById('tab-register').className = tab === 'register'
+        ? 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white'
+        : 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400';
+    }
+
+    async function loginWithKey() {
+      const key = document.getElementById('login-api-key').value.trim();
+      if (!key) return;
+      setApiKey(key);
+      await checkAuth();
+    }
+
+    async function registerAgent() {
+      const name = document.getElementById('reg-name').value.trim();
+      const email = document.getElementById('reg-email').value.trim();
+      const errEl = document.getElementById('reg-error');
+      const btn = document.getElementById('reg-btn');
+      errEl.classList.add('hidden');
+
+      if (!name || !email) {
+        errEl.textContent = 'Name and email are required.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Registering...';
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, createWallet: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Registration failed');
+
+        setApiKey(data.apiKey);
+        setAgent(data.agent);
+
+        // Show key to user before continuing
+        alert(`Your API key (save it!):\n\n${data.apiKey}\n\nThis is shown only once.`);
+        showMain();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Register & Get API Key';
+      }
+    }
+
+    // ─── Auth Modal ─────────────────────────────────────────────
+    function showAuthModal() {
+      const key = getApiKey();
+      if (!key) {
+        showGate();
+        return;
+      }
+      document.getElementById('modal-api-key').value = key.substring(0, 20) + '...';
+      document.getElementById('modal-new-key').value = '';
+      document.getElementById('auth-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function updateApiKey() {
+      const newKey = document.getElementById('modal-new-key').value.trim();
+      if (!newKey) return;
+      setApiKey(newKey);
+      closeAuthModal();
+      checkAuth();
+    }
+
+    function logoutKey() {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_AGENT);
+      closeAuthModal();
+      showGate();
+    }
+
+    // ─── Photo Handling ─────────────────────────────────────────
+    function handlePhotos(input) {
+      const files = Array.from(input.files);
+      files.forEach(file => {
+        if (file.size > 2 * 1024 * 1024) {
+          alert(`${file.name} exceeds 2MB limit`);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          uploadedPhotos.push(e.target.result);
+          renderPhotoPreviews();
+        };
+        reader.readAsDataURL(file);
+      });
+      input.value = '';
+    }
+
+    function renderPhotoPreviews() {
+      const container = document.getElementById('photo-previews');
+      container.innerHTML = uploadedPhotos.map((src, i) => `
+        <div class="relative group">
+          <img src="${src}" class="w-20 h-20 object-cover rounded-lg border border-white/10" />
+          <button onclick="removePhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition">×</button>
+        </div>
+      `).join('');
+    }
+
+    function removePhoto(index) {
+      uploadedPhotos.splice(index, 1);
+      renderPhotoPreviews();
+    }
+
+    // ─── Create Listing ─────────────────────────────────────────
+    async function createListing() {
+      const title = document.getElementById('listing-title').value.trim();
+      const description = document.getElementById('listing-description').value.trim();
+      const priceStr = document.getElementById('listing-price').value;
+      const category = document.getElementById('listing-category').value;
+      const condition = document.getElementById('listing-condition').value;
+      const quantity = parseInt(document.getElementById('listing-quantity').value) || 1;
+      const errEl = document.getElementById('form-error');
+      const btn = document.getElementById('submit-btn');
+      errEl.classList.add('hidden');
+
+      // Validation
+      if (!title) return showFormError('Title is required');
+      if (!description) return showFormError('Description is required');
+      if (!priceStr || parseInt(priceStr) < 1) return showFormError('Price must be at least $1');
+      if (!category) return showFormError('Category is required');
+
+      const price = parseInt(priceStr);
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-pulse">Creating listing...</span>';
+
+      try {
+        const body = {
+          title,
+          description,
+          priceUsdc: price,
+          category,
+          condition,
+          quantity,
+          images: [], // photos stored client-side for now
+        };
+
+        const res = await fetch(`${API_BASE}/listings`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Failed to create listing');
+
+        // Show success
+        document.getElementById('success-message').innerHTML =
+          `Listing <code class="text-indigo-300">${data.listing.id.substring(0, 8)}...</code> is now live on the marketplace.`;
+        document.getElementById('success-banner').classList.remove('hidden');
+        document.getElementById('listing-form-container').classList.add('hidden');
+        loadMyListings();
+      } catch (err) {
+        showFormError(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🏷️</span><span>List Item</span>';
+      }
+    }
+
+    function showFormError(msg) {
+      const el = document.getElementById('form-error');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    function resetForm() {
+      document.getElementById('listing-title').value = '';
+      document.getElementById('listing-description').value = '';
+      document.getElementById('listing-price').value = '';
+      document.getElementById('listing-category').value = '';
+      document.getElementById('listing-condition').value = 'new';
+      document.getElementById('listing-quantity').value = '1';
+      uploadedPhotos = [];
+      renderPhotoPreviews();
+      document.getElementById('success-banner').classList.add('hidden');
+      document.getElementById('listing-form-container').classList.remove('hidden');
+      document.getElementById('form-error').classList.add('hidden');
+    }
+
+    // ─── My Listings ────────────────────────────────────────────
+    async function loadMyListings() {
+      const container = document.getElementById('my-listings');
+      if (!myAgent) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/listings?sellerId=${myAgent.id}&limit=50`, {
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        const listings = data.listings || [];
+
+        if (listings.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-12 text-gray-500">
+              <div class="text-4xl mb-3">🏪</div>
+              <p>You haven't listed anything yet.</p>
+              <p class="text-sm mt-1">Create your first listing above!</p>
+            </div>`;
+          return;
+        }
+
+        container.innerHTML = listings.map(l => {
+          const price = formatPrice(l.priceUsdc);
+          const condClass = `condition-${l.condition}`;
+          const condLabel = formatCondition(l.condition);
+          const statusBadge = l.status === 'active'
+            ? '<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>'
+            : l.status === 'sold'
+              ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">Sold</span>'
+              : l.status === 'delisted'
+                ? '<span class="text-xs px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-400 border border-gray-500/20">Delisted</span>'
+                : `<span class="text-xs px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 capitalize">${l.status}</span>`;
+
+          return `
+            <div class="bg-white/5 border border-white/10 rounded-xl p-5 card-glow fade-in">
+              <div class="flex items-start justify-between gap-4">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-2 flex-wrap">
+                    <h3 class="font-semibold truncate">${escapeHtml(l.title)}</h3>
+                    ${statusBadge}
+                  </div>
+                  <p class="text-gray-400 text-sm mb-3 line-clamp-2">${escapeHtml(l.description)}</p>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs px-2 py-0.5 rounded-full ${condClass} font-medium">${condLabel}</span>
+                    <span class="text-xs text-gray-500">Qty: ${l.quantity ?? 1}</span>
+                    <span class="text-xs text-gray-600">${formatDate(l.createdAt)}</span>
+                  </div>
+                </div>
+                <div class="text-right flex-shrink-0">
+                  <div class="text-lg font-bold text-emerald-400 mb-2">${price}</div>
+                  ${l.status === 'active' ? `
+                    <div class="flex gap-2">
+                      <button onclick="editListing('${l.id}')" class="btn-secondary text-xs">Edit</button>
+                      <button onclick="delistListing('${l.id}')" class="btn-danger text-xs">Delist</button>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>`;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = `<div class="text-red-400 text-center py-8">Failed to load listings: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    // ─── Edit Listing (inline modal) ────────────────────────────
+    async function editListing(id) {
+      try {
+        const res = await fetch(`${API_BASE}/listings/${id}`, { headers: authHeaders() });
+        const data = await res.json();
+        const l = data.listing;
+
+        const newTitle = prompt('Title:', l.title);
+        if (newTitle === null) return;
+        const newPrice = prompt('Price (USDC):', l.priceUsdc);
+        if (newPrice === null) return;
+        const newDesc = prompt('Description:', l.description);
+        if (newDesc === null) return;
+
+        const updateRes = await fetch(`${API_BASE}/listings/${id}`, {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            title: newTitle || l.title,
+            priceUsdc: parseInt(newPrice) || parseInt(l.priceUsdc),
+            description: newDesc || l.description,
+          }),
+        });
+        if (!updateRes.ok) {
+          const err = await updateRes.json();
+          throw new Error(err.error?.message || 'Update failed');
+        }
+        loadMyListings();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function delistListing(id) {
+      if (!confirm('Delist this item? It will be removed from the marketplace.')) return;
+      try {
+        const res = await fetch(`${API_BASE}/listings/${id}`, {
+          method: 'DELETE',
+          headers: authHeaders(),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error?.message || 'Delist failed');
+        }
+        loadMyListings();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────
+    function formatPrice(priceUsdc) {
+      const num = parseFloat(priceUsdc);
+      if (isNaN(num)) return '$—';
+      return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatCondition(c) {
+      const map = { new: 'New', like_new: 'Like New', good: 'Good', fair: 'Fair', poor: 'Poor' };
+      return map[c] || c || 'Unknown';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ─── Init ───────────────────────────────────────────────────
+    checkAuth();
+  </script>
+
+</body>
+</html>
