@@ -221,7 +221,7 @@ export class EbayService {
       throw new Error(`eBay token refresh failed: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { access_token: string; expires_in: number };
     return {
       accessToken: data.access_token,
       expiresIn: data.expires_in,
@@ -289,7 +289,7 @@ export class EbayService {
       throw new Error(`eBay offer creation failed: ${offerResponse.status} ${err}`);
     }
 
-    const offer = await offerResponse.json();
+    const offer = await offerResponse.json() as { offerId: string };
     const offerId = offer.offerId;
     logger.info('eBay offer created', { offerId, sku });
 
@@ -312,7 +312,7 @@ export class EbayService {
       throw new Error(`eBay offer publish failed: ${publishResponse.status} ${err}`);
     }
 
-    const published = await publishResponse.json();
+    const published = await publishResponse.json() as { listingId: string };
     const listingId = published.listingId;
     const isSandbox = this.sandbox;
     const url = isSandbox
@@ -399,7 +399,7 @@ export class EbayService {
       );
 
       if (offersResponse.ok) {
-        const offersData = await offersResponse.json();
+        const offersData = await offersResponse.json() as { offers?: { offerId: string; [k: string]: unknown }[] };
         const offers = offersData.offers || [];
 
         for (const offer of offers) {
@@ -449,7 +449,7 @@ export class EbayService {
     );
 
     if (offersResponse.ok) {
-      const offersData = await offersResponse.json();
+      const offersData = await offersResponse.json() as { offers?: { offerId: string; status: string }[] };
       const offers = offersData.offers || [];
 
       for (const offer of offers) {
@@ -531,7 +531,7 @@ export class EbayService {
       throw new Error(`eBay search failed: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { itemSummaries?: EbaySearchResult[] };
     const items: EbaySearchResult[] = data.itemSummaries || [];
 
     return items.map(ebaySearchToExternal);
@@ -560,7 +560,7 @@ export class EbayService {
       throw new Error(`eBay getItem failed: ${response.status} ${err}`);
     }
 
-    return response.json();
+    return response.json() as Promise<EbayItemDetail>;
   }
 
   // ─── Orders: Fulfillment API ────────────────────────────────────
@@ -591,7 +591,7 @@ export class EbayService {
       throw new Error(`eBay getOrders failed: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { orders?: EbayOrder[] };
     const orders: EbayOrder[] = data.orders || [];
 
     return orders.map(ebayOrderToExternal);

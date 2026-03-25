@@ -205,7 +205,7 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: listingId } = uuidParamSchema.parse(req.params);
-      const marketplace = req.params.marketplace;
+      const marketplace = req.params.marketplace as string;
       const agentId = req.agent!.id;
 
       if (!['ebay'].includes(marketplace)) {
