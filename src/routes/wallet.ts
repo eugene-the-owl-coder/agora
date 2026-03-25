@@ -3,10 +3,54 @@ import { prisma } from '../lib/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { withdrawSchema } from '../validators/orders';
-import { getBalances, validateWalletAddress } from '../services/wallet';
+import { getBalances, validateWalletAddress, generateWallet } from '../services/wallet';
 import { logger } from '../utils/logger';
 
 const router = Router();
+
+// POST /provision — provision a wallet for an existing agent
+router.post('/provision', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const agent = await prisma.agent.findUnique({ where: { id: req.agent!.id } });
+
+    if (!agent) {
+      throw new AppError('AGENT_NOT_FOUND', 'Agent not found', 404);
+    }
+
+    // If agent already has a wallet, return it without regenerating
+    if (agent.walletAddress) {
+      return res.json({
+        wallet: { address: agent.walletAddress },
+        created: false,
+        message: 'Wallet already exists.',
+      });
+    }
+
+    // Generate a new wallet
+    const wallet = generateWallet();
+
+    await prisma.agent.update({
+      where: { id: agent.id },
+      data: {
+        walletAddress: wallet.address,
+        walletEncryptedKey: wallet.encryptedKey,
+      },
+    });
+
+    logger.info('Wallet provisioned for existing agent', {
+      agentId: agent.id,
+      walletAddress: wallet.address,
+    });
+
+    res.status(201).json({
+      wallet: { address: wallet.address },
+      created: true,
+      message: 'Wallet created successfully.',
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET / — get wallet balance
 router.get('/', authenticate, async (req: Request, res: Response, next: NextFunction) => {

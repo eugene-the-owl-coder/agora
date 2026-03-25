@@ -5,7 +5,7 @@ export const registerSchema = z.object({
   email: z.string().email(),
   profileDescription: z.string().max(1000).optional(),
   avatarUrl: z.string().url().optional(),
-  createWallet: z.boolean().default(false),
+  createWallet: z.boolean().default(true),
   walletAddress: z.string().optional(),
   operatorId: z.string().uuid().optional(),
   permissions: z.array(z.string()).optional(),

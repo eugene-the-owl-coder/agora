@@ -37,10 +37,27 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       throw new AppError('OUT_OF_STOCK', 'This listing is out of stock', 400);
     }
 
-    // Create escrow (stubbed for Phase 2)
+    // Validate wallet presence before escrow
+    if (!req.agent!.walletAddress) {
+      throw new AppError(
+        'BUYER_NO_WALLET',
+        'Buyer has no wallet. Provision one via POST /api/v1/wallet/provision before placing orders.',
+        400,
+      );
+    }
+
+    if (!listing.agent.walletAddress) {
+      throw new AppError(
+        'SELLER_NO_WALLET',
+        'Seller has no wallet configured. The seller must provision a wallet before their listings can be purchased.',
+        400,
+      );
+    }
+
+    // Create escrow
     const escrow = await createEscrow(
-      req.agent!.walletAddress || '',
-      listing.agent.walletAddress || '',
+      req.agent!.walletAddress,
+      listing.agent.walletAddress,
       listing.priceUsdc,
     );
 
@@ -235,10 +252,19 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
       throw new AppError('INVALID_STATUS', `Order cannot be confirmed from status: ${order.status}`, 400);
     }
 
-    // Release escrow (stubbed)
+    // Validate seller wallet before releasing escrow
+    if (!order.seller.walletAddress) {
+      throw new AppError(
+        'SELLER_NO_WALLET',
+        'Seller has no wallet. Cannot release escrow funds without a valid seller wallet.',
+        400,
+      );
+    }
+
+    // Release escrow
     const releaseSig = await releaseEscrow(
       order.escrowAddress || '',
-      order.seller.walletAddress || '',
+      order.seller.walletAddress,
     );
 
     const updated = await prisma.order.update({
@@ -349,7 +375,16 @@ router.post('/:id/cancel', authenticate, async (req: Request, res: Response, nex
 
     // Refund escrow if funded
     if (order.escrowAddress) {
-      const refundSig = await refundEscrow(order.escrowAddress, '');
+      // Look up buyer wallet for refund
+      const buyer = await prisma.agent.findUnique({ where: { id: order.buyerAgentId } });
+      if (!buyer?.walletAddress) {
+        throw new AppError(
+          'BUYER_NO_WALLET',
+          'Buyer has no wallet. Cannot process escrow refund without a valid buyer wallet.',
+          400,
+        );
+      }
+      const refundSig = await refundEscrow(order.escrowAddress, buyer.walletAddress);
       await prisma.transaction.create({
         data: {
           orderId: id,
