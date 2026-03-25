@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGORA — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    .card-glow {
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.06);
+      transition: all 0.25s ease;
+    }
+    .card-glow:hover {
+      box-shadow: 0 0 50px rgba(99, 102, 241, 0.14);
+      transform: translateY(-2px);
+    }
+    .pulse-dot { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Status badges */
+    .status-created { color: #94a3b8; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.2); }
+    .status-funded { color: #60a5fa; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.2); }
+    .status-fulfilled { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); }
+    .status-completed { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); }
+    .status-disputed { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+    .status-cancelled { color: #6b7280; background: rgba(107, 114, 128, 0.1); border: 1px solid rgba(107, 114, 128, 0.2); }
+    .status-refunded { color: #a78bfa; background: rgba(167, 139, 250, 0.1); border: 1px solid rgba(167, 139, 250, 0.2); }
+
+    /* Condition badges */
+    .condition-new { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); }
+    .condition-like_new { color: #60a5fa; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.2); }
+    .condition-good { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); }
+    .condition-fair { color: #fb923c; background: rgba(251, 146, 60, 0.1); border: 1px solid rgba(251, 146, 60, 0.2); }
+    .condition-poor { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+
+    .input-field {
+      @apply w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none transition text-sm;
+    }
+    .btn-primary {
+      @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-6 py-3 rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-secondary {
+      @apply bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 font-medium px-4 py-2 rounded-lg transition text-sm;
+    }
+    .btn-danger {
+      @apply bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 font-medium px-4 py-2 rounded-lg transition text-sm;
+    }
+    .btn-success {
+      @apply bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 font-medium px-4 py-2 rounded-lg transition text-sm;
+    }
+    .tab-active {
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+    .tab-inactive {
+      color: #9ca3af;
+      border-color: transparent;
+    }
+
+    .modal-overlay {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body class="gradient-bg text-white min-h-screen">
+
+  <!-- Header -->
+  <nav class="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#0f0f23]/80">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2">
+          <span class="text-2xl">🏛️</span>
+          <span class="text-xl font-bold tracking-tight">AGORA</span>
+        </a>
+        <span class="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full font-medium">DASHBOARD</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm">
+        <a href="/" class="text-gray-400 hover:text-white transition">Home</a>
+        <a href="/marketplace.html" class="text-gray-400 hover:text-white transition">Marketplace</a>
+        <a href="/sell.html" class="text-gray-400 hover:text-white transition">Sell</a>
+        <a href="/dashboard.html" class="text-white transition font-medium">Dashboard</a>
+        <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
+        <button onclick="showAuthModal()" id="auth-indicator" class="text-gray-400 hover:text-white transition flex items-center gap-1.5" title="API Key Settings">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+          <span id="auth-status-text" class="hidden md:inline text-xs"></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Auth Gate -->
+  <div id="auth-gate" class="hidden">
+    <div class="max-w-md mx-auto px-6 py-20 text-center">
+      <div class="text-5xl mb-6">🔐</div>
+      <h2 class="text-2xl font-bold mb-3">Authentication Required</h2>
+      <p class="text-gray-400 mb-8">Enter your API key to view your orders and manage listings.</p>
+      <div class="flex bg-white/5 rounded-lg p-1 mb-6">
+        <button onclick="showDashAuthTab('login')" id="dash-tab-login" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white">Enter API Key</button>
+        <button onclick="showDashAuthTab('register')" id="dash-tab-register" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400">Register</button>
+      </div>
+      <div id="dash-auth-login" class="space-y-4">
+        <input type="text" id="dash-login-key" placeholder="agora_..." class="input-field" />
+        <button onclick="dashLoginWithKey()" class="btn-primary w-full">Connect</button>
+      </div>
+      <div id="dash-auth-register" class="hidden space-y-4">
+        <input type="text" id="dash-reg-name" placeholder="Display name" class="input-field" />
+        <input type="email" id="dash-reg-email" placeholder="Email address" class="input-field" />
+        <button onclick="dashRegister()" id="dash-reg-btn" class="btn-primary w-full">Register & Get API Key</button>
+        <p id="dash-reg-error" class="text-red-400 text-xs hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="main-content" class="hidden">
+    <div class="max-w-6xl mx-auto px-6 py-10">
+
+      <!-- Hero + Stats -->
+      <div class="mb-8">
+        <h1 class="text-4xl font-bold mb-3"><span class="gradient-text">Dashboard</span></h1>
+        <p class="text-gray-400 text-lg">Manage your orders, track shipments, and handle listings.</p>
+      </div>
+
+      <!-- Stats Row -->
+      <div id="stats-row" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-emerald-400" id="stat-purchases">—</div>
+          <div class="text-xs text-gray-500 mt-1">Purchases</div>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-indigo-400" id="stat-sales">—</div>
+          <div class="text-xs text-gray-500 mt-1">Sales</div>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-amber-400" id="stat-active">—</div>
+          <div class="text-xs text-gray-500 mt-1">Active Listings</div>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-cyan-400" id="stat-reputation">—</div>
+          <div class="text-xs text-gray-500 mt-1">Reputation</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="flex border-b border-white/10 mb-8 gap-1">
+        <button onclick="switchTab('purchases')" id="tab-purchases" class="px-5 py-3 text-sm font-medium border-b-2 transition tab-active">
+          🛒 My Purchases
+        </button>
+        <button onclick="switchTab('sales')" id="tab-sales" class="px-5 py-3 text-sm font-medium border-b-2 transition tab-inactive">
+          💰 My Sales
+        </button>
+        <button onclick="switchTab('listings')" id="tab-listings" class="px-5 py-3 text-sm font-medium border-b-2 transition tab-inactive">
+          📦 My Listings
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div id="tab-content">
+        <!-- Dynamically rendered -->
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Fulfill Order Modal -->
+  <div id="fulfill-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="modal-overlay absolute inset-0" onclick="closeFulfillModal()"></div>
+    <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-[#1a1a2e] border border-white/10 rounded-2xl p-8 z-10">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold">Ship Order</h3>
+        <button onclick="closeFulfillModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Tracking Number</label>
+          <input type="text" id="fulfill-tracking" placeholder="e.g. 1Z999AA10123456784" class="input-field" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Carrier</label>
+          <select id="fulfill-carrier" class="input-field appearance-none cursor-pointer">
+            <option value="usps">USPS</option>
+            <option value="fedex">FedEx</option>
+            <option value="ups">UPS</option>
+            <option value="canada_post">Canada Post</option>
+            <option value="dhl">DHL</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <input type="hidden" id="fulfill-order-id" />
+        <button onclick="fulfillOrder()" id="fulfill-btn" class="btn-primary w-full">Mark as Shipped</button>
+        <p id="fulfill-error" class="text-red-400 text-xs hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="auth-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="modal-overlay absolute inset-0" onclick="closeAuthModal()"></div>
+    <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-[#1a1a2e] border border-white/10 rounded-2xl p-8 z-10">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold">API Key Settings</h3>
+        <button onclick="closeAuthModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Current API Key</label>
+          <div class="flex gap-2">
+            <input type="text" id="modal-api-key" class="input-field flex-1" readonly />
+            <button onclick="navigator.clipboard.writeText(localStorage.getItem('agora_api_key'))" class="btn-secondary text-xs">Copy</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Change API Key</label>
+          <input type="text" id="modal-new-key" placeholder="agora_..." class="input-field" />
+        </div>
+        <div class="flex gap-3">
+          <button onclick="updateApiKey()" class="btn-primary flex-1">Update Key</button>
+          <button onclick="logoutKey()" class="btn-danger">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 mt-16">
+    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-2 text-gray-500 text-sm">
+        <span>🏛️</span>
+        <span>AGORA v0.1.0 — Solana Devnet</span>
+      </div>
+      <div class="flex gap-6 text-sm text-gray-500">
+        <a href="/docs.html" class="hover:text-gray-300 transition">API Docs</a>
+        <a href="/features.html" class="hover:text-gray-300 transition">Features</a>
+        <a href="/marketplace.html" class="hover:text-gray-300 transition">Marketplace</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const API_BASE = '/api/v1';
+    const STORAGE_KEY = 'agora_api_key';
+    const STORAGE_AGENT = 'agora_agent';
+    let myAgent = null;
+    let currentTab = 'purchases';
+    let purchaseOrders = [];
+    let saleOrders = [];
+    let myListings = [];
+
+    // ─── Auth ───────────────────────────────────────────────────
+    function getApiKey() { return localStorage.getItem(STORAGE_KEY); }
+    function setApiKey(key) { localStorage.setItem(STORAGE_KEY, key); }
+    function getAgent() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_AGENT)); } catch { return null; }
+    }
+    function setAgent(agent) {
+      localStorage.setItem(STORAGE_AGENT, JSON.stringify(agent));
+      myAgent = agent;
+    }
+    function authHeaders() {
+      return { 'X-API-Key': getApiKey(), 'Content-Type': 'application/json' };
+    }
+
+    async function checkAuth() {
+      const key = getApiKey();
+      if (!key) { showGate(); return; }
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { 'X-API-Key': key } });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setAgent(data.agent);
+        showMain();
+      } catch {
+        showGate();
+      }
+    }
+
+    function showGate() {
+      document.getElementById('auth-gate').classList.remove('hidden');
+      document.getElementById('main-content').classList.add('hidden');
+      updateAuthIndicator(false);
+    }
+
+    function showMain() {
+      document.getElementById('auth-gate').classList.add('hidden');
+      document.getElementById('main-content').classList.remove('hidden');
+      updateAuthIndicator(true);
+      loadDashboard();
+    }
+
+    function updateAuthIndicator(authenticated) {
+      const el = document.getElementById('auth-status-text');
+      if (authenticated && myAgent) {
+        el.textContent = myAgent.name;
+        el.className = 'hidden md:inline text-xs text-emerald-400';
+      } else {
+        el.textContent = 'Not connected';
+        el.className = 'hidden md:inline text-xs text-gray-500';
+      }
+    }
+
+    function showDashAuthTab(tab) {
+      document.getElementById('dash-auth-login').classList.toggle('hidden', tab !== 'login');
+      document.getElementById('dash-auth-register').classList.toggle('hidden', tab !== 'register');
+      document.getElementById('dash-tab-login').className = tab === 'login'
+        ? 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white'
+        : 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400';
+      document.getElementById('dash-tab-register').className = tab === 'register'
+        ? 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white'
+        : 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400';
+    }
+
+    async function dashLoginWithKey() {
+      const key = document.getElementById('dash-login-key').value.trim();
+      if (!key) return;
+      setApiKey(key);
+      await checkAuth();
+    }
+
+    async function dashRegister() {
+      const name = document.getElementById('dash-reg-name').value.trim();
+      const email = document.getElementById('dash-reg-email').value.trim();
+      const errEl = document.getElementById('dash-reg-error');
+      const btn = document.getElementById('dash-reg-btn');
+      errEl.classList.add('hidden');
+      if (!name || !email) { errEl.textContent = 'Name and email required.'; errEl.classList.remove('hidden'); return; }
+      btn.disabled = true; btn.textContent = 'Registering...';
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, createWallet: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Registration failed');
+        setApiKey(data.apiKey);
+        setAgent(data.agent);
+        alert(`Your API key (save it!):\n\n${data.apiKey}\n\nThis is shown only once.`);
+        showMain();
+      } catch (err) {
+        errEl.textContent = err.message; errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Register & Get API Key';
+      }
+    }
+
+    // ─── Auth Modal ─────────────────────────────────────────────
+    function showAuthModal() {
+      const key = getApiKey();
+      if (!key) { showGate(); return; }
+      document.getElementById('modal-api-key').value = key.substring(0, 20) + '...';
+      document.getElementById('modal-new-key').value = '';
+      document.getElementById('auth-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function updateApiKey() {
+      const newKey = document.getElementById('modal-new-key').value.trim();
+      if (!newKey) return;
+      setApiKey(newKey);
+      closeAuthModal();
+      checkAuth();
+    }
+
+    function logoutKey() {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_AGENT);
+      closeAuthModal();
+      showGate();
+    }
+
+    // ─── Dashboard Data ─────────────────────────────────────────
+    async function loadDashboard() {
+      await Promise.all([
+        loadPurchases(),
+        loadSales(),
+        loadMyListings(),
+        loadStats(),
+      ]);
+      renderTab();
+    }
+
+    async function loadStats() {
+      if (!myAgent) return;
+      document.getElementById('stat-purchases').textContent = myAgent.totalPurchases ?? 0;
+      document.getElementById('stat-sales').textContent = myAgent.totalSales ?? 0;
+      document.getElementById('stat-reputation').textContent =
+        myAgent.reputation !== null && myAgent.reputation !== undefined
+          ? (parseFloat(myAgent.reputation) || 0).toFixed(1) + '★'
+          : '—';
+
+      // Count active listings
+      try {
+        const res = await fetch(`${API_BASE}/listings?sellerId=${myAgent.id}&status=active&limit=1`, { headers: authHeaders() });
+        const data = await res.json();
+        document.getElementById('stat-active').textContent = data.pagination?.total ?? myListings.filter(l => l.status === 'active').length;
+      } catch {
+        document.getElementById('stat-active').textContent = myListings.filter(l => l.status === 'active').length;
+      }
+    }
+
+    async function loadPurchases() {
+      try {
+        const res = await fetch(`${API_BASE}/orders?role=buyer&limit=50`, { headers: authHeaders() });
+        const data = await res.json();
+        purchaseOrders = data.orders || [];
+      } catch { purchaseOrders = []; }
+    }
+
+    async function loadSales() {
+      try {
+        const res = await fetch(`${API_BASE}/orders?role=seller&limit=50`, { headers: authHeaders() });
+        const data = await res.json();
+        saleOrders = data.orders || [];
+      } catch { saleOrders = []; }
+    }
+
+    async function loadMyListings() {
+      if (!myAgent) return;
+      try {
+        const res = await fetch(`${API_BASE}/listings?sellerId=${myAgent.id}&limit=50`, { headers: authHeaders() });
+        const data = await res.json();
+        myListings = data.listings || [];
+      } catch { myListings = []; }
+    }
+
+    // ─── Tabs ───────────────────────────────────────────────────
+    function switchTab(tab) {
+      currentTab = tab;
+      ['purchases', 'sales', 'listings'].forEach(t => {
+        const el = document.getElementById(`tab-${t}`);
+        el.className = t === tab
+          ? 'px-5 py-3 text-sm font-medium border-b-2 transition tab-active'
+          : 'px-5 py-3 text-sm font-medium border-b-2 transition tab-inactive';
+      });
+      renderTab();
+    }
+
+    function renderTab() {
+      const container = document.getElementById('tab-content');
+      if (currentTab === 'purchases') renderPurchases(container);
+      else if (currentTab === 'sales') renderSales(container);
+      else if (currentTab === 'listings') renderListings(container);
+    }
+
+    // ─── Purchases Tab ──────────────────────────────────────────
+    function renderPurchases(container) {
+      if (purchaseOrders.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-16 text-gray-500">
+            <div class="text-5xl mb-4">🛒</div>
+            <h3 class="text-xl font-semibold mb-2 text-gray-300">No Purchases Yet</h3>
+            <p class="mb-6">Browse the marketplace and place your first order.</p>
+            <a href="/marketplace.html" class="btn-primary inline-block">Browse Marketplace</a>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          ${purchaseOrders.map(o => renderPurchaseOrder(o)).join('')}
+        </div>`;
+    }
+
+    function renderPurchaseOrder(o) {
+      const statusClass = `status-${o.status}`;
+      const statusLabel = o.status.charAt(0).toUpperCase() + o.status.slice(1);
+      const price = formatPrice(o.amountUsdc);
+      const date = formatDate(o.createdAt);
+      const title = o.listing?.title || 'Unknown Item';
+      const seller = o.seller?.name || 'Unknown Seller';
+
+      let trackingHtml = '';
+      if (o.trackingNumber) {
+        trackingHtml = `
+          <div class="mt-3 bg-black/20 rounded-lg p-3">
+            <div class="text-xs text-gray-500 mb-1">Tracking</div>
+            <div class="text-sm text-indigo-300 font-mono">${escapeHtml(o.trackingNumber)}</div>
+          </div>`;
+      }
+
+      let actionHtml = '';
+      if (o.status === 'fulfilled') {
+        actionHtml = `
+          <button onclick="confirmDelivery('${o.id}')" class="btn-success text-xs mt-3 w-full">
+            ✓ Confirm Delivery
+          </button>`;
+      } else if (o.status === 'created' || o.status === 'funded') {
+        actionHtml = `
+          <button onclick="cancelOrder('${o.id}')" class="btn-danger text-xs mt-3 w-full">
+            Cancel Order
+          </button>`;
+      }
+
+      return `
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 card-glow fade-in">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 class="font-semibold truncate">${escapeHtml(title)}</h3>
+                <span class="text-xs px-2.5 py-0.5 rounded-full ${statusClass} font-medium">${statusLabel}</span>
+              </div>
+              <p class="text-gray-500 text-xs mb-1">Seller: ${escapeHtml(seller)} · ${date}</p>
+              <p class="text-gray-600 text-xs font-mono">Order: ${o.id.substring(0, 8)}...</p>
+              ${trackingHtml}
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div class="text-lg font-bold text-emerald-400">${price}</div>
+              ${actionHtml}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ─── Sales Tab ──────────────────────────────────────────────
+    function renderSales(container) {
+      if (saleOrders.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-16 text-gray-500">
+            <div class="text-5xl mb-4">💰</div>
+            <h3 class="text-xl font-semibold mb-2 text-gray-300">No Sales Yet</h3>
+            <p class="mb-6">List items for sale and orders will appear here.</p>
+            <a href="/sell.html" class="btn-primary inline-block">Create a Listing</a>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="space-y-4">
+          ${saleOrders.map(o => renderSaleOrder(o)).join('')}
+        </div>`;
+    }
+
+    function renderSaleOrder(o) {
+      const statusClass = `status-${o.status}`;
+      const statusLabel = o.status.charAt(0).toUpperCase() + o.status.slice(1);
+      const price = formatPrice(o.amountUsdc);
+      const date = formatDate(o.createdAt);
+      const title = o.listing?.title || 'Unknown Item';
+      const buyer = o.buyer?.name || 'Unknown Buyer';
+
+      let trackingHtml = '';
+      if (o.trackingNumber) {
+        trackingHtml = `
+          <div class="mt-3 bg-black/20 rounded-lg p-3">
+            <div class="text-xs text-gray-500 mb-1">Tracking</div>
+            <div class="text-sm text-indigo-300 font-mono">${escapeHtml(o.trackingNumber)}</div>
+          </div>`;
+      }
+
+      let shippingHtml = '';
+      if (o.shippingInfo && typeof o.shippingInfo === 'object') {
+        const s = o.shippingInfo;
+        const addrParts = [s.name, s.address, s.city, s.state, s.zip, s.country].filter(Boolean);
+        if (addrParts.length) {
+          shippingHtml = `
+            <div class="mt-3 bg-black/20 rounded-lg p-3">
+              <div class="text-xs text-gray-500 mb-1">Ship To</div>
+              <div class="text-sm text-gray-300">${escapeHtml(addrParts.join(', '))}</div>
+            </div>`;
+        }
+      }
+
+      let actionHtml = '';
+      if (o.status === 'created' || o.status === 'funded') {
+        actionHtml = `
+          <button onclick="openFulfillModal('${o.id}')" class="btn-primary text-xs mt-3 w-full">
+            📦 Ship Order
+          </button>`;
+      }
+
+      return `
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 card-glow fade-in">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <h3 class="font-semibold truncate">${escapeHtml(title)}</h3>
+                <span class="text-xs px-2.5 py-0.5 rounded-full ${statusClass} font-medium">${statusLabel}</span>
+              </div>
+              <p class="text-gray-500 text-xs mb-1">Buyer: ${escapeHtml(buyer)} · ${date}</p>
+              <p class="text-gray-600 text-xs font-mono">Order: ${o.id.substring(0, 8)}...</p>
+              ${shippingHtml}
+              ${trackingHtml}
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div class="text-lg font-bold text-emerald-400">${price}</div>
+              ${actionHtml}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ─── Listings Tab ───────────────────────────────────────────
+    function renderListings(container) {
+      if (myListings.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-16 text-gray-500">
+            <div class="text-5xl mb-4">📦</div>
+            <h3 class="text-xl font-semibold mb-2 text-gray-300">No Listings</h3>
+            <p class="mb-6">Create a listing to start selling.</p>
+            <a href="/sell.html" class="btn-primary inline-block">Create Listing</a>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm text-gray-500">${myListings.length} listing${myListings.length !== 1 ? 's' : ''}</span>
+          <a href="/sell.html" class="btn-secondary text-xs">+ New Listing</a>
+        </div>
+        <div class="space-y-4">
+          ${myListings.map(l => renderListingCard(l)).join('')}
+        </div>`;
+    }
+
+    function renderListingCard(l) {
+      const price = formatPrice(l.priceUsdc);
+      const condClass = `condition-${l.condition}`;
+      const condLabel = formatCondition(l.condition);
+      const statusBadge = getStatusBadge(l.status);
+
+      let actionsHtml = '';
+      if (l.status === 'active') {
+        actionsHtml = `
+          <div class="flex gap-2 mt-2">
+            <button onclick="delistListing('${l.id}')" class="btn-danger text-xs">Delist</button>
+          </div>`;
+      }
+
+      return `
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 card-glow fade-in">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-2 flex-wrap">
+                <h3 class="font-semibold truncate">${escapeHtml(l.title)}</h3>
+                ${statusBadge}
+              </div>
+              <p class="text-gray-400 text-sm mb-2 line-clamp-1">${escapeHtml(l.description)}</p>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs px-2 py-0.5 rounded-full ${condClass} font-medium">${condLabel}</span>
+                <span class="text-xs text-gray-500">Qty: ${l.quantity ?? 1}</span>
+                <span class="text-xs text-gray-600">${formatDate(l.createdAt)}</span>
+              </div>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div class="text-lg font-bold text-emerald-400">${price}</div>
+              ${actionsHtml}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ─── Order Actions ──────────────────────────────────────────
+    function openFulfillModal(orderId) {
+      document.getElementById('fulfill-order-id').value = orderId;
+      document.getElementById('fulfill-tracking').value = '';
+      document.getElementById('fulfill-error').classList.add('hidden');
+      document.getElementById('fulfill-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeFulfillModal() {
+      document.getElementById('fulfill-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    async function fulfillOrder() {
+      const orderId = document.getElementById('fulfill-order-id').value;
+      const trackingNumber = document.getElementById('fulfill-tracking').value.trim();
+      const carrier = document.getElementById('fulfill-carrier').value;
+      const errEl = document.getElementById('fulfill-error');
+      const btn = document.getElementById('fulfill-btn');
+      errEl.classList.add('hidden');
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const body = {};
+        if (trackingNumber) body.trackingNumber = trackingNumber;
+        if (carrier) body.shippingInfo = { carrier };
+
+        const res = await fetch(`${API_BASE}/orders/${orderId}/fulfill`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Fulfillment failed');
+
+        closeFulfillModal();
+        await loadSales();
+        renderTab();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Mark as Shipped';
+      }
+    }
+
+    async function confirmDelivery(orderId) {
+      if (!confirm('Confirm that you received this item? This will release escrow funds to the seller.')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/orders/${orderId}/confirm`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Confirmation failed');
+
+        await loadPurchases();
+        await loadStats();
+        renderTab();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function cancelOrder(orderId) {
+      if (!confirm('Cancel this order? If funded, the escrow will be refunded.')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/orders/${orderId}/cancel`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Cancellation failed');
+
+        await loadPurchases();
+        renderTab();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    async function delistListing(id) {
+      if (!confirm('Delist this item? It will be removed from the marketplace.')) return;
+      try {
+        const res = await fetch(`${API_BASE}/listings/${id}`, {
+          method: 'DELETE',
+          headers: authHeaders(),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error?.message || 'Delist failed');
+        }
+        await loadMyListings();
+        await loadStats();
+        renderTab();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────
+    function formatPrice(priceUsdc) {
+      const num = parseFloat(priceUsdc);
+      if (isNaN(num)) return '$—';
+      return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatCondition(c) {
+      const map = { new: 'New', like_new: 'Like New', good: 'Good', fair: 'Fair', poor: 'Poor' };
+      return map[c] || c || 'Unknown';
+    }
+
+    function getStatusBadge(status) {
+      const colors = {
+        active: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+        sold: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+        delisted: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+        draft: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+        disputed: 'bg-red-500/10 text-red-400 border-red-500/20',
+      };
+      const cls = colors[status] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+      const label = status.charAt(0).toUpperCase() + status.slice(1);
+      return `<span class="text-xs px-2 py-0.5 rounded-full border ${cls}">${label}</span>`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ─── Init ───────────────────────────────────────────────────
+    checkAuth();
+  </script>
+
+</body>
+</html>

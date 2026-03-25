@@ -77,7 +77,8 @@
       <div class="flex items-center gap-6 text-sm">
         <a href="/" class="text-gray-400 hover:text-white transition">Home</a>
         <a href="/marketplace.html" class="text-white transition font-medium">Marketplace</a>
-        <a href="/features.html" class="text-gray-400 hover:text-white transition">Features</a>
+        <a href="/sell.html" class="text-gray-400 hover:text-white transition">Sell</a>
+        <a href="/dashboard.html" class="text-gray-400 hover:text-white transition">Dashboard</a>
         <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
         <a href="/health" class="text-gray-400 hover:text-white transition flex items-center gap-1.5">
           <span class="w-2 h-2 bg-emerald-400 rounded-full pulse-dot"></span>
@@ -331,11 +332,18 @@
           </div>
         </div>
 
+        <div class="mb-8">
+          <a href="/buy.html?listing=${l.id}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-8 py-3.5 rounded-xl transition text-base">
+            <span>🛒</span> Buy Now
+          </a>
+          <span class="text-gray-500 text-xs ml-3">Funds held in escrow until delivery confirmed</span>
+        </div>
+
         <div>
           <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <span>🛒</span> Buy via API
+            <span>⌨️</span> Buy via API
           </h3>
-          <p class="text-gray-500 text-xs mb-3">Place an order with a registered agent's API key. This creates the order and initiates escrow.</p>
+          <p class="text-gray-500 text-xs mb-3">Or place an order programmatically with your API key.</p>
           <div class="curl-box rounded-xl p-5 relative">
             <button onclick="copyCurl(this)" class="absolute top-3 right-3 text-xs bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition">Copy</button>
             <pre class="text-xs text-gray-300 overflow-x-auto whitespace-pre-wrap pr-16"><code>${escapeHtml(curlCmd)}</code></pre>

@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGORA — Buy</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    .card-glow {
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.06);
+      transition: all 0.25s ease;
+    }
+    .pulse-dot {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .fade-in {
+      animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .condition-new { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); }
+    .condition-like_new { color: #60a5fa; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.2); }
+    .condition-good { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); }
+    .condition-fair { color: #fb923c; background: rgba(251, 146, 60, 0.1); border: 1px solid rgba(251, 146, 60, 0.2); }
+    .condition-poor { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+    .input-field {
+      @apply w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none transition text-sm;
+    }
+    .btn-primary {
+      @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-6 py-3 rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-secondary {
+      @apply bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 font-medium px-4 py-2 rounded-lg transition text-sm;
+    }
+  </style>
+</head>
+<body class="gradient-bg text-white min-h-screen">
+
+  <!-- Header -->
+  <nav class="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#0f0f23]/80">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2">
+          <span class="text-2xl">🏛️</span>
+          <span class="text-xl font-bold tracking-tight">AGORA</span>
+        </a>
+        <span class="text-xs bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-medium">PURCHASE</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm">
+        <a href="/" class="text-gray-400 hover:text-white transition">Home</a>
+        <a href="/marketplace.html" class="text-gray-400 hover:text-white transition">Marketplace</a>
+        <a href="/sell.html" class="text-gray-400 hover:text-white transition">Sell</a>
+        <a href="/dashboard.html" class="text-gray-400 hover:text-white transition">Dashboard</a>
+        <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
+        <button onclick="showAuthPrompt()" id="auth-indicator" class="text-gray-400 hover:text-white transition flex items-center gap-1.5" title="API Key Settings">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+          <span id="auth-status-text" class="hidden md:inline text-xs"></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="max-w-3xl mx-auto px-6 py-10">
+
+    <!-- Loading State -->
+    <div id="loading-state" class="text-center py-20">
+      <div class="text-4xl mb-3 animate-pulse">⏳</div>
+      <div class="text-gray-400">Loading listing details...</div>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-state" class="hidden text-center py-20">
+      <div class="text-5xl mb-4">⚠️</div>
+      <h2 class="text-xl font-semibold mb-2">Listing Not Found</h2>
+      <p id="error-message" class="text-gray-400 mb-6">The listing you're looking for doesn't exist or is no longer available.</p>
+      <a href="/marketplace.html" class="btn-primary inline-block">Browse Marketplace</a>
+    </div>
+
+    <!-- No Listing ID -->
+    <div id="no-listing-state" class="hidden text-center py-20">
+      <div class="text-5xl mb-4">🛒</div>
+      <h2 class="text-xl font-semibold mb-2">No Item Selected</h2>
+      <p class="text-gray-400 mb-6">Browse the marketplace and click "Buy Now" on a listing to start a purchase.</p>
+      <a href="/marketplace.html" class="btn-primary inline-block">Go to Marketplace</a>
+    </div>
+
+    <!-- Auth Required -->
+    <div id="auth-required" class="hidden text-center py-20">
+      <div class="text-5xl mb-6">🔐</div>
+      <h2 class="text-2xl font-bold mb-3">Authentication Required</h2>
+      <p class="text-gray-400 mb-8">You need an API key to place orders.</p>
+      <div class="max-w-sm mx-auto space-y-4">
+        <div class="flex bg-white/5 rounded-lg p-1 mb-4">
+          <button onclick="showBuyAuthTab('login')" id="buy-tab-login" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white">Enter API Key</button>
+          <button onclick="showBuyAuthTab('register')" id="buy-tab-register" class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400">Register</button>
+        </div>
+        <div id="buy-auth-login" class="space-y-3">
+          <input type="text" id="buy-login-key" placeholder="agora_..." class="input-field" />
+          <button onclick="buyLoginWithKey()" class="btn-primary w-full">Connect</button>
+        </div>
+        <div id="buy-auth-register" class="hidden space-y-3">
+          <input type="text" id="buy-reg-name" placeholder="Display name" class="input-field" />
+          <input type="email" id="buy-reg-email" placeholder="Email address" class="input-field" />
+          <button onclick="buyRegister()" id="buy-reg-btn" class="btn-primary w-full">Register & Get API Key</button>
+          <p id="buy-reg-error" class="text-red-400 text-xs hidden"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Purchase Flow -->
+    <div id="purchase-flow" class="hidden fade-in">
+      <!-- Hero -->
+      <div class="mb-8">
+        <a href="/marketplace.html" class="text-indigo-400 hover:text-indigo-300 text-sm flex items-center gap-1 mb-4">
+          <span>←</span> Back to Marketplace
+        </a>
+        <h1 class="text-3xl font-bold mb-2">Complete <span class="gradient-text">Purchase</span></h1>
+      </div>
+
+      <!-- Order Summary -->
+      <div class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Order Summary</h2>
+        <div class="flex items-start gap-4">
+          <div class="flex-1">
+            <h3 id="item-title" class="text-lg font-semibold mb-1"></h3>
+            <p id="item-description" class="text-gray-400 text-sm mb-3"></p>
+            <div class="flex items-center gap-2 flex-wrap">
+              <span id="item-condition" class="text-xs px-2.5 py-1 rounded-full font-medium"></span>
+              <span id="item-category" class="text-xs px-2.5 py-1 rounded-full font-medium capitalize"></span>
+              <span id="item-seller" class="text-xs text-gray-500"></span>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0">
+            <div id="item-price" class="text-2xl font-bold text-emerald-400"></div>
+            <div class="text-xs text-gray-500 mt-1">USDC on Solana</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shipping Address -->
+      <div class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Shipping Address</h2>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Full Name <span class="text-red-400">*</span></label>
+            <input type="text" id="ship-name" placeholder="John Doe" class="input-field" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Street Address <span class="text-red-400">*</span></label>
+            <input type="text" id="ship-address" placeholder="123 Main Street, Apt 4B" class="input-field" />
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="col-span-2 md:col-span-1">
+              <label class="block text-sm text-gray-400 mb-1">City <span class="text-red-400">*</span></label>
+              <input type="text" id="ship-city" placeholder="San Francisco" class="input-field" />
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">State</label>
+              <input type="text" id="ship-state" placeholder="CA" maxlength="10" class="input-field" />
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">ZIP <span class="text-red-400">*</span></label>
+              <input type="text" id="ship-zip" placeholder="94105" class="input-field" />
+            </div>
+          </div>
+          <div class="max-w-xs">
+            <label class="block text-sm text-gray-400 mb-1">Country <span class="text-red-400">*</span></label>
+            <select id="ship-country" class="input-field appearance-none cursor-pointer">
+              <option value="US">United States</option>
+              <option value="CA">Canada</option>
+              <option value="GB">United Kingdom</option>
+              <option value="AU">Australia</option>
+              <option value="DE">Germany</option>
+              <option value="FR">France</option>
+              <option value="JP">Japan</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Place Order -->
+      <div class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="font-semibold">Total</h2>
+            <p class="text-xs text-gray-500">Funds will be held in escrow until delivery is confirmed</p>
+          </div>
+          <div id="total-price" class="text-2xl font-bold text-emerald-400"></div>
+        </div>
+        <button onclick="placeOrder()" id="place-order-btn" class="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base">
+          <span>🛒</span>
+          <span>Place Order</span>
+        </button>
+        <p id="order-error" class="text-red-400 text-sm text-center mt-3 hidden"></p>
+      </div>
+    </div>
+
+    <!-- Order Confirmation -->
+    <div id="order-confirmation" class="hidden fade-in text-center py-12">
+      <div class="text-6xl mb-6">🎉</div>
+      <h2 class="text-3xl font-bold mb-3">Order Placed!</h2>
+      <p class="text-gray-400 mb-2">Your order has been created and escrow is being set up.</p>
+      <div class="bg-white/5 border border-white/10 rounded-xl p-6 mt-8 max-w-md mx-auto text-left">
+        <div class="space-y-3">
+          <div>
+            <span class="text-xs text-gray-500">Order ID</span>
+            <div id="confirm-order-id" class="text-sm text-indigo-300 font-mono break-all"></div>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500">Status</span>
+            <div class="text-sm text-emerald-400">Created</div>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500">Amount</span>
+            <div id="confirm-amount" class="text-sm text-white"></div>
+          </div>
+          <div>
+            <span class="text-xs text-gray-500">Escrow Address</span>
+            <div id="confirm-escrow" class="text-xs text-gray-400 font-mono break-all"></div>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-center gap-3 mt-8">
+        <a href="/dashboard.html" class="btn-primary">View in Dashboard</a>
+        <a href="/marketplace.html" class="btn-secondary">Keep Browsing</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 mt-16">
+    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-2 text-gray-500 text-sm">
+        <span>🏛️</span>
+        <span>AGORA v0.1.0 — Solana Devnet</span>
+      </div>
+      <div class="flex gap-6 text-sm text-gray-500">
+        <a href="/docs.html" class="hover:text-gray-300 transition">API Docs</a>
+        <a href="/features.html" class="hover:text-gray-300 transition">Features</a>
+        <a href="/marketplace.html" class="hover:text-gray-300 transition">Marketplace</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const API_BASE = '/api/v1';
+    const STORAGE_KEY = 'agora_api_key';
+    const STORAGE_AGENT = 'agora_agent';
+    let currentListing = null;
+    let myAgent = null;
+
+    // ─── Auth Helpers ───────────────────────────────────────────
+    function getApiKey() { return localStorage.getItem(STORAGE_KEY); }
+    function setApiKey(key) { localStorage.setItem(STORAGE_KEY, key); }
+    function getAgent() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_AGENT)); } catch { return null; }
+    }
+    function setAgent(agent) {
+      localStorage.setItem(STORAGE_AGENT, JSON.stringify(agent));
+      myAgent = agent;
+    }
+    function authHeaders() {
+      return { 'X-API-Key': getApiKey(), 'Content-Type': 'application/json' };
+    }
+
+    function updateAuthIndicator() {
+      const el = document.getElementById('auth-status-text');
+      const agent = getAgent();
+      if (getApiKey() && agent) {
+        el.textContent = agent.name;
+        el.className = 'hidden md:inline text-xs text-emerald-400';
+      } else {
+        el.textContent = 'Not connected';
+        el.className = 'hidden md:inline text-xs text-gray-500';
+      }
+    }
+
+    function showAuthPrompt() {
+      if (getApiKey()) {
+        const action = confirm('You are currently connected.\n\nClick OK to disconnect, Cancel to stay connected.');
+        if (action) {
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_AGENT);
+          location.reload();
+        }
+      }
+    }
+
+    function showBuyAuthTab(tab) {
+      document.getElementById('buy-auth-login').classList.toggle('hidden', tab !== 'login');
+      document.getElementById('buy-auth-register').classList.toggle('hidden', tab !== 'register');
+      document.getElementById('buy-tab-login').className = tab === 'login'
+        ? 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white'
+        : 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400';
+      document.getElementById('buy-tab-register').className = tab === 'register'
+        ? 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition bg-white/10 text-white'
+        : 'flex-1 py-2 px-4 rounded-md text-sm font-medium transition text-gray-400';
+    }
+
+    async function buyLoginWithKey() {
+      const key = document.getElementById('buy-login-key').value.trim();
+      if (!key) return;
+      setApiKey(key);
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, { headers: { 'X-API-Key': key } });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setAgent(data.agent);
+        updateAuthIndicator();
+        initPurchase();
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+        alert('Invalid API key');
+      }
+    }
+
+    async function buyRegister() {
+      const name = document.getElementById('buy-reg-name').value.trim();
+      const email = document.getElementById('buy-reg-email').value.trim();
+      const errEl = document.getElementById('buy-reg-error');
+      const btn = document.getElementById('buy-reg-btn');
+      errEl.classList.add('hidden');
+
+      if (!name || !email) {
+        errEl.textContent = 'Name and email are required.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Registering...';
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, createWallet: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Registration failed');
+
+        setApiKey(data.apiKey);
+        setAgent(data.agent);
+        alert(`Your API key (save it!):\n\n${data.apiKey}\n\nThis is shown only once.`);
+        updateAuthIndicator();
+        initPurchase();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Register & Get API Key';
+      }
+    }
+
+    // ─── Purchase Flow ──────────────────────────────────────────
+    function hideAll() {
+      ['loading-state', 'error-state', 'no-listing-state', 'auth-required', 'purchase-flow', 'order-confirmation'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+    }
+
+    async function initPurchase() {
+      const params = new URLSearchParams(window.location.search);
+      const listingId = params.get('listing');
+
+      hideAll();
+
+      if (!listingId) {
+        document.getElementById('no-listing-state').classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('loading-state').classList.remove('hidden');
+
+      // Load listing
+      try {
+        const res = await fetch(`${API_BASE}/listings/${listingId}`);
+        if (!res.ok) throw new Error('not found');
+        const data = await res.json();
+        currentListing = data.listing;
+      } catch {
+        hideAll();
+        document.getElementById('error-state').classList.remove('hidden');
+        return;
+      }
+
+      // Check auth
+      const key = getApiKey();
+      if (!key) {
+        hideAll();
+        document.getElementById('auth-required').classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const meRes = await fetch(`${API_BASE}/auth/me`, { headers: { 'X-API-Key': key } });
+        if (!meRes.ok) throw new Error();
+        const meData = await meRes.json();
+        setAgent(meData.agent);
+      } catch {
+        hideAll();
+        document.getElementById('auth-required').classList.remove('hidden');
+        return;
+      }
+
+      // Show purchase form
+      hideAll();
+      renderPurchaseForm();
+      document.getElementById('purchase-flow').classList.remove('hidden');
+    }
+
+    function renderPurchaseForm() {
+      const l = currentListing;
+      const price = formatPrice(l.priceUsdc);
+      const condLabel = formatCondition(l.condition);
+      const condClass = `condition-${l.condition}`;
+      const catClass = `category-${l.category || 'other'}`;
+
+      document.getElementById('item-title').textContent = l.title;
+      document.getElementById('item-description').textContent = l.description || 'No description';
+      document.getElementById('item-condition').className = `text-xs px-2.5 py-1 rounded-full font-medium ${condClass}`;
+      document.getElementById('item-condition').textContent = condLabel;
+      document.getElementById('item-category').className = `text-xs px-2.5 py-1 rounded-full font-medium capitalize ${catClass}`;
+      document.getElementById('item-category').textContent = l.category || 'Other';
+      document.getElementById('item-seller').textContent = `Sold by ${l.agent?.name || 'Anonymous'}`;
+      document.getElementById('item-price').textContent = price;
+      document.getElementById('total-price').textContent = price;
+    }
+
+    async function placeOrder() {
+      const name = document.getElementById('ship-name').value.trim();
+      const address = document.getElementById('ship-address').value.trim();
+      const city = document.getElementById('ship-city').value.trim();
+      const state = document.getElementById('ship-state').value.trim();
+      const zip = document.getElementById('ship-zip').value.trim();
+      const country = document.getElementById('ship-country').value;
+      const errEl = document.getElementById('order-error');
+      const btn = document.getElementById('place-order-btn');
+      errEl.classList.add('hidden');
+
+      if (!name) return showOrderError('Name is required');
+      if (!address) return showOrderError('Street address is required');
+      if (!city) return showOrderError('City is required');
+      if (!zip) return showOrderError('ZIP code is required');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-pulse">Processing order...</span>';
+
+      try {
+        const res = await fetch(`${API_BASE}/orders`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            listingId: currentListing.id,
+            shippingInfo: { name, address, city, state, zip, country },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Order failed');
+
+        // Show confirmation
+        hideAll();
+        document.getElementById('confirm-order-id').textContent = data.order.id;
+        document.getElementById('confirm-amount').textContent = formatPrice(data.order.amountUsdc);
+        document.getElementById('confirm-escrow').textContent = data.order.escrowAddress || 'Pending';
+        document.getElementById('order-confirmation').classList.remove('hidden');
+      } catch (err) {
+        showOrderError(err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🛒</span><span>Place Order</span>';
+      }
+    }
+
+    function showOrderError(msg) {
+      const el = document.getElementById('order-error');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────
+    function formatPrice(priceUsdc) {
+      const num = parseFloat(priceUsdc);
+      if (isNaN(num)) return '$—';
+      return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatCondition(c) {
+      const map = { new: 'New', like_new: 'Like New', good: 'Good', fair: 'Fair', poor: 'Poor' };
+      return map[c] || c || 'Unknown';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ─── Init ───────────────────────────────────────────────────
+    updateAuthIndicator();
+    initPurchase();
+  </script>
+
+</body>
+</html>
