@@ -199,6 +199,46 @@
             <input type="number" id="listing-quantity" value="1" min="1" step="1" class="input-field" />
           </div>
 
+          <!-- Shipping Info -->
+          <div class="bg-white/3 border border-white/5 rounded-lg p-5 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-lg">📦</span>
+              <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Shipping Details</h3>
+            </div>
+            <p class="text-xs text-gray-500 -mt-2">Used to calculate real shipping rates for buyers via Canada Post.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-400 mb-2">Ship From Postal Code <span class="text-red-400">*</span></label>
+                <input type="text" id="listing-ship-from" placeholder="e.g. V5K 1A1" maxlength="7" class="input-field" />
+                <p class="text-xs text-gray-600 mt-1">Canadian postal code</p>
+              </div>
+              <div>
+                <label class="block text-sm text-gray-400 mb-2">Weight (kg) <span class="text-red-400">*</span></label>
+                <input type="number" id="listing-weight" placeholder="0.5" min="0.01" step="0.01" class="input-field" />
+                <p class="text-xs text-gray-600 mt-1">Package weight in kilograms</p>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Package Dimensions (cm) <span class="text-red-400">*</span></label>
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <input type="number" id="listing-length" placeholder="Length" min="1" step="0.1" class="input-field" />
+                  <p class="text-xs text-gray-600 mt-1 text-center">Length</p>
+                </div>
+                <div>
+                  <input type="number" id="listing-width" placeholder="Width" min="1" step="0.1" class="input-field" />
+                  <p class="text-xs text-gray-600 mt-1 text-center">Width</p>
+                </div>
+                <div>
+                  <input type="number" id="listing-height" placeholder="Height" min="1" step="0.1" class="input-field" />
+                  <p class="text-xs text-gray-600 mt-1 text-center">Height</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Photo Upload -->
           <div>
             <label class="block text-sm text-gray-400 mb-2">Photos</label>
@@ -486,6 +526,11 @@
       const category = document.getElementById('listing-category').value;
       const condition = document.getElementById('listing-condition').value;
       const quantity = parseInt(document.getElementById('listing-quantity').value) || 1;
+      const shipFrom = document.getElementById('listing-ship-from').value.trim();
+      const weightKg = parseFloat(document.getElementById('listing-weight').value) || 0;
+      const lengthCm = parseFloat(document.getElementById('listing-length').value) || 0;
+      const widthCm = parseFloat(document.getElementById('listing-width').value) || 0;
+      const heightCm = parseFloat(document.getElementById('listing-height').value) || 0;
       const errEl = document.getElementById('form-error');
       const btn = document.getElementById('submit-btn');
       errEl.classList.add('hidden');
@@ -495,6 +540,9 @@
       if (!description) return showFormError('Description is required');
       if (!priceStr || parseInt(priceStr) < 1) return showFormError('Price must be at least $1');
       if (!category) return showFormError('Category is required');
+      if (!shipFrom) return showFormError('Ship-from postal code is required for shipping quotes');
+      if (weightKg <= 0) return showFormError('Package weight is required');
+      if (lengthCm <= 0 || widthCm <= 0 || heightCm <= 0) return showFormError('Package dimensions are required');
 
       const price = parseInt(priceStr);
 
@@ -510,6 +558,11 @@
           condition,
           quantity,
           images: [], // photos stored client-side for now
+          metadata: {
+            shipFromPostalCode: shipFrom.replace(/\s+/g, '').toUpperCase(),
+            weightKg,
+            dimensions: { lengthCm, widthCm, heightCm },
+          },
         };
 
         const res = await fetch(`${API_BASE}/listings`, {
@@ -547,6 +600,11 @@
       document.getElementById('listing-category').value = '';
       document.getElementById('listing-condition').value = 'new';
       document.getElementById('listing-quantity').value = '1';
+      document.getElementById('listing-ship-from').value = '';
+      document.getElementById('listing-weight').value = '';
+      document.getElementById('listing-length').value = '';
+      document.getElementById('listing-width').value = '';
+      document.getElementById('listing-height').value = '';
       uploadedPhotos = [];
       renderPhotoPreviews();
       document.getElementById('success-banner').classList.add('hidden');

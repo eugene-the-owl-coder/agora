@@ -20,6 +20,7 @@ import buyOrderRoutes from './routes/buyOrders';
 import trackingRoutes from './routes/tracking';
 import syndicationRoutes from './routes/syndication';
 import ebayAuthRoutes from './routes/ebayAuth';
+import shippingRoutes from './routes/shipping';
 import { getTrackingOracle } from './services/trackingOracle';
 
 const app = express();
@@ -99,6 +100,7 @@ app.use('/api/v1/buy-orders', buyOrderRoutes);
 app.use('/api/v1/orders', trackingRoutes);
 app.use('/api/v1/listings', syndicationRoutes);
 app.use('/api/v1/integrations/ebay', ebayAuthRoutes);
+app.use('/api/v1/shipping', shippingRoutes);
 
 // 404 handler
 app.use((_req, res) => {

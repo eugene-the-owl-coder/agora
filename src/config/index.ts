@@ -29,6 +29,17 @@ export const config = {
     canadaPostPassword: process.env.CANADA_POST_PASSWORD || '',
   },
 
+  canadaPost: {
+    apiUser: process.env.CANADA_POST_API_USER || process.env.CANADA_POST_USERNAME || '',
+    apiPassword: process.env.CANADA_POST_API_PASSWORD || process.env.CANADA_POST_PASSWORD || '',
+    customerNumber: process.env.CANADA_POST_CUSTOMER_NUMBER || '',
+    sandbox: process.env.CANADA_POST_SANDBOX !== 'false', // default true (sandbox)
+  },
+
+  shipping: {
+    cadToUsdcRate: parseFloat(process.env.CAD_TO_USDC_RATE || '0.73'),
+  },
+
   tracking: {
     pollIntervalMs: parseInt(process.env.TRACKING_POLL_INTERVAL_MS || '1800000', 10),
   },

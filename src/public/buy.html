@@ -195,14 +195,33 @@
         </div>
       </div>
 
+      <!-- Shipping Rates -->
+      <div id="shipping-rates-section" class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6 hidden">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Shipping Options</h2>
+        <div id="shipping-rates-loading" class="text-center py-4 hidden">
+          <div class="text-2xl mb-2 animate-pulse">📦</div>
+          <p class="text-gray-400 text-sm">Getting shipping quotes...</p>
+        </div>
+        <div id="shipping-rates-error" class="text-red-400 text-sm text-center py-4 hidden"></div>
+        <div id="shipping-rates-list" class="space-y-2"></div>
+        <div id="shipping-estimate-notice" class="hidden mt-3 text-xs text-yellow-400/70 bg-yellow-500/5 border border-yellow-500/10 rounded-lg px-3 py-2">
+          ⚠️ These are estimated rates. Actual shipping cost may vary.
+        </div>
+      </div>
+
       <!-- Place Order -->
       <div class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-2">
           <div>
             <h2 class="font-semibold">Total</h2>
             <p class="text-xs text-gray-500">Funds will be held in escrow until delivery is confirmed</p>
           </div>
-          <div id="total-price" class="text-2xl font-bold text-emerald-400"></div>
+          <div class="text-right">
+            <div id="total-price" class="text-2xl font-bold text-emerald-400"></div>
+            <div id="total-breakdown" class="text-xs text-gray-500 hidden">
+              <span id="breakdown-item"></span> + <span id="breakdown-shipping"></span> shipping
+            </div>
+          </div>
         </div>
         <button onclick="placeOrder()" id="place-order-btn" class="btn-primary w-full flex items-center justify-center gap-2 py-4 text-base">
           <span>🛒</span>
@@ -266,6 +285,9 @@
     const STORAGE_AGENT = 'agora_agent';
     let currentListing = null;
     let myAgent = null;
+    let selectedShipping = null;
+    let shippingRates = [];
+    let shippingDebounceTimer = null;
 
     // ─── Auth Helpers ───────────────────────────────────────────
     function getApiKey() { return localStorage.getItem(STORAGE_KEY); }
@@ -444,6 +466,9 @@
       document.getElementById('item-seller').textContent = `Sold by ${l.agent?.name || 'Anonymous'}`;
       document.getElementById('item-price').textContent = price;
       document.getElementById('total-price').textContent = price;
+
+      // Set up shipping rate listeners
+      setupShippingListeners();
     }
 
     async function placeOrder() {
@@ -462,6 +487,20 @@
       if (!city) return showOrderError('City is required');
       if (!zip) return showOrderError('ZIP code is required');
 
+      // Build shipping info with selected rate
+      const shippingInfo = { name, address, city, state, zip, country };
+      if (selectedShipping) {
+        shippingInfo.selectedRate = {
+          serviceCode: selectedShipping.serviceCode,
+          serviceName: selectedShipping.serviceName,
+          priceCAD: selectedShipping.priceCAD,
+          priceUSDC: selectedShipping.priceUSDC,
+          transitDays: selectedShipping.transitDays,
+          guaranteed: selectedShipping.guaranteed,
+          isEstimate: selectedShipping.isEstimate,
+        };
+      }
+
       btn.disabled = true;
       btn.innerHTML = '<span class="animate-pulse">Processing order...</span>';
 
@@ -471,7 +510,7 @@
           headers: authHeaders(),
           body: JSON.stringify({
             listingId: currentListing.id,
-            shippingInfo: { name, address, city, state, zip, country },
+            shippingInfo,
           }),
         });
         const data = await res.json();
@@ -480,7 +519,10 @@
         // Show confirmation
         hideAll();
         document.getElementById('confirm-order-id').textContent = data.order.id;
-        document.getElementById('confirm-amount').textContent = formatPrice(data.order.amountUsdc);
+        const totalAmount = parseFloat(data.order.amountUsdc || '0');
+        const shippingAmount = selectedShipping ? selectedShipping.priceUSDC : 0;
+        document.getElementById('confirm-amount').textContent = formatPrice(totalAmount.toString()) +
+          (shippingAmount > 0 ? ` (incl. $${shippingAmount.toFixed(2)} shipping)` : '');
         document.getElementById('confirm-escrow').textContent = data.order.escrowAddress || 'Pending';
         document.getElementById('order-confirmation').classList.remove('hidden');
       } catch (err) {
@@ -495,6 +537,158 @@
       const el = document.getElementById('order-error');
       el.textContent = msg;
       el.classList.remove('hidden');
+    }
+
+    // ─── Shipping Rates ───────────────────────────────────────────
+    function setupShippingListeners() {
+      const zipInput = document.getElementById('ship-zip');
+      const countrySelect = document.getElementById('ship-country');
+
+      // Debounced fetch on zip/postal code change
+      zipInput.addEventListener('input', () => {
+        clearTimeout(shippingDebounceTimer);
+        shippingDebounceTimer = setTimeout(() => fetchShippingRates(), 600);
+      });
+
+      countrySelect.addEventListener('change', () => {
+        fetchShippingRates();
+      });
+    }
+
+    async function fetchShippingRates() {
+      const zip = document.getElementById('ship-zip').value.trim();
+      const country = document.getElementById('ship-country').value;
+      const section = document.getElementById('shipping-rates-section');
+      const loading = document.getElementById('shipping-rates-loading');
+      const errorEl = document.getElementById('shipping-rates-error');
+      const listEl = document.getElementById('shipping-rates-list');
+      const noticeEl = document.getElementById('shipping-estimate-notice');
+
+      // Need at least a ZIP/postal code
+      if (!zip || zip.length < 3) {
+        section.classList.add('hidden');
+        selectedShipping = null;
+        shippingRates = [];
+        updateTotal();
+        return;
+      }
+
+      // Check if listing has shipping info
+      const metadata = currentListing.metadata || {};
+      if (!metadata.shipFromPostalCode && !metadata.ship_from_postal_code) {
+        section.classList.remove('hidden');
+        loading.classList.add('hidden');
+        errorEl.textContent = 'This listing does not have shipping information configured. Contact the seller.';
+        errorEl.classList.remove('hidden');
+        listEl.innerHTML = '';
+        return;
+      }
+
+      section.classList.remove('hidden');
+      loading.classList.remove('hidden');
+      errorEl.classList.add('hidden');
+      listEl.innerHTML = '';
+      noticeEl.classList.add('hidden');
+
+      try {
+        // Build query params
+        const params = new URLSearchParams({
+          listingId: currentListing.id,
+        });
+
+        if (country === 'CA') {
+          params.set('destPostalCode', zip);
+        } else if (country === 'US') {
+          params.set('destZip', zip);
+        } else {
+          params.set('destCountry', country);
+        }
+
+        const res = await fetch(`${API_BASE}/shipping/rates?${params}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error?.message || 'Failed to get shipping rates');
+        }
+
+        shippingRates = data.rates || [];
+        loading.classList.add('hidden');
+
+        if (shippingRates.length === 0) {
+          errorEl.textContent = 'No shipping options available for this destination.';
+          errorEl.classList.remove('hidden');
+          return;
+        }
+
+        // Show estimate notice if applicable
+        if (data.meta?.isEstimate) {
+          noticeEl.classList.remove('hidden');
+        }
+
+        // Render options
+        listEl.innerHTML = shippingRates.map((rate, i) => {
+          const transitText = rate.transitDays ? `${rate.transitDays} business days` : 'Varies';
+          const guaranteedBadge = rate.guaranteed ? '<span class="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-1">Guaranteed</span>' : '';
+          const estimateBadge = rate.isEstimate ? '<span class="text-xs px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 ml-1">Est.</span>' : '';
+
+          return `
+            <label class="flex items-center gap-3 p-3 rounded-lg border border-white/10 hover:border-indigo-500/30 cursor-pointer transition ${i === 0 ? 'border-indigo-500/40 bg-indigo-500/5' : ''}">
+              <input type="radio" name="shipping-option" value="${i}" ${i === 0 ? 'checked' : ''} onchange="selectShipping(${i})" class="accent-indigo-500" />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1 flex-wrap">
+                  <span class="text-sm font-medium text-white">${escapeHtml(rate.serviceName)}</span>
+                  ${guaranteedBadge}${estimateBadge}
+                </div>
+                <div class="text-xs text-gray-500">${transitText}${rate.expectedDelivery ? ' — by ' + rate.expectedDelivery : ''}</div>
+              </div>
+              <div class="text-sm font-semibold text-emerald-400 flex-shrink-0">$${rate.priceUSDC.toFixed(2)}</div>
+            </label>
+          `;
+        }).join('');
+
+        // Auto-select first option
+        selectShipping(0);
+      } catch (err) {
+        loading.classList.add('hidden');
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+        selectedShipping = null;
+        updateTotal();
+      }
+    }
+
+    function selectShipping(index) {
+      selectedShipping = shippingRates[index] || null;
+      updateTotal();
+
+      // Update visual selection
+      const labels = document.querySelectorAll('#shipping-rates-list label');
+      labels.forEach((label, i) => {
+        if (i === index) {
+          label.classList.add('border-indigo-500/40', 'bg-indigo-500/5');
+          label.classList.remove('border-white/10');
+        } else {
+          label.classList.remove('border-indigo-500/40', 'bg-indigo-500/5');
+          label.classList.add('border-white/10');
+        }
+      });
+    }
+
+    function updateTotal() {
+      const itemPrice = parseFloat(currentListing?.priceUsdc || '0');
+      const shippingPrice = selectedShipping ? selectedShipping.priceUSDC : 0;
+      const total = itemPrice + shippingPrice;
+
+      document.getElementById('total-price').textContent = formatPrice(total.toString());
+
+      const breakdownEl = document.getElementById('total-breakdown');
+      if (selectedShipping) {
+        document.getElementById('breakdown-item').textContent = formatPrice(currentListing.priceUsdc);
+        document.getElementById('breakdown-shipping').textContent = '$' + shippingPrice.toFixed(2);
+        breakdownEl.classList.remove('hidden');
+      } else {
+        breakdownEl.classList.add('hidden');
+      }
     }
 
     // ─── Helpers ────────────────────────────────────────────────
