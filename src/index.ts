@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -17,17 +18,24 @@ import webhookRoutes from './routes/webhooks';
 import feedbackRoutes from './routes/feedback';
 import buyOrderRoutes from './routes/buyOrders';
 import trackingRoutes from './routes/tracking';
+import syndicationRoutes from './routes/syndication';
+import ebayAuthRoutes from './routes/ebayAuth';
 import { getTrackingOracle } from './services/trackingOracle';
 
 const app = express();
 // Prisma singleton from lib/prisma.ts
 
 // Global middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Allow inline styles/scripts for landing page
+}));
 app.use(cors());
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(globalRateLimiter);
+
+// Serve static files (landing page, docs, feature request UI)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Request logging
 app.use((req, _res, next) => {
@@ -80,6 +88,8 @@ app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/feedback', feedbackRoutes);
 app.use('/api/v1/buy-orders', buyOrderRoutes);
 app.use('/api/v1/orders', trackingRoutes);
+app.use('/api/v1/listings', syndicationRoutes);
+app.use('/api/v1/integrations/ebay', ebayAuthRoutes);
 
 // 404 handler
 app.use((_req, res) => {

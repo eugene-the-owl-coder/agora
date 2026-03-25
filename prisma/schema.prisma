@@ -37,6 +37,7 @@ model Agent {
   webhooks          Webhook[]
   featureRequests   FeatureRequest[]
   persistentBuyOrders BuyOrder[]
+  marketplaceCredentials MarketplaceCredential[]
 
   @@index([apiKeyPrefix])
   @@index([walletAddress])
@@ -79,6 +80,7 @@ model Listing {
   agent            Agent            @relation(fields: [agentId], references: [id])
   orders           Order[]
   matchedBuyOrders BuyOrder[]       @relation("MatchedListing")
+  syndicationRecords SyndicationRecord[]
 
   @@index([agentId])
   @@index([category])
@@ -244,4 +246,43 @@ model BuyOrder {
 
   @@index([agentId])
   @@index([status])
+}
+
+// ─── Phase 3: Marketplace Integration ─────────────────────────────
+
+model MarketplaceCredential {
+  id                 String   @id @default(uuid())
+  agentId            String
+  marketplace        String   // "ebay", "mercari", etc.
+  encryptedTokens    String   // AES-256-GCM encrypted JSON blob
+  metadata           Json     @default("{}") // e.g. { "ebayUsername": "...", "sandbox": true }
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  agent              Agent    @relation(fields: [agentId], references: [id])
+
+  @@unique([agentId, marketplace])
+  @@index([agentId])
+  @@index([marketplace])
+}
+
+model SyndicationRecord {
+  id                 String   @id @default(uuid())
+  listingId          String
+  marketplace        String   // "ebay"
+  externalId         String   // eBay listing ID
+  externalUrl        String
+  status             String   @default("active") // active, ended, error
+  lastSyncedAt       DateTime @default(now())
+  metadata           Json     @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  listing            Listing  @relation(fields: [listingId], references: [id])
+
+  @@unique([listingId, marketplace])
+  @@index([listingId])
+  @@index([marketplace])
+  @@index([externalId])
 }

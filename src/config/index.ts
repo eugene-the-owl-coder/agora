@@ -46,6 +46,15 @@ export const config = {
     timeoutMs: parseInt(process.env.WEBHOOK_TIMEOUT_MS || '5000', 10),
     maxRetries: parseInt(process.env.WEBHOOK_MAX_RETRIES || '3', 10),
   },
+
+  ebay: {
+    appId: process.env.EBAY_APP_ID || '',
+    certId: process.env.EBAY_CERT_ID || '',
+    devId: process.env.EBAY_DEV_ID || '',
+    redirectUri: process.env.EBAY_REDIRECT_URI || '',
+    sandbox: process.env.EBAY_SANDBOX !== 'false', // default true (sandbox mode)
+    usdcToUsdRate: parseFloat(process.env.EBAY_USDC_TO_USD_RATE || '1.0'),
+  },
 } as const;
 
 // Production safety guards — fail fast if secrets are defaults
