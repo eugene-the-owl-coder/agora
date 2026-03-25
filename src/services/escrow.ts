@@ -13,14 +13,18 @@ import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-// Import the generated IDL type — will exist after `anchor build`
+// Import the generated IDL — try committed copy first, then build output
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 let ESCROW_IDL: any;
 try {
-  ESCROW_IDL = require('../../target/idl/escrow.json');
+  ESCROW_IDL = require('../idl/escrow.json');
 } catch {
-  // IDL not built yet — stub mode
-  ESCROW_IDL = null;
+  try {
+    ESCROW_IDL = require('../../target/idl/escrow.json');
+  } catch {
+    // IDL not available — stub mode
+    ESCROW_IDL = null;
+  }
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
