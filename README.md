@@ -265,6 +265,111 @@ curl -X POST http://localhost:3000/api/v1/buy-orders \
 #### `GET /health` — Health check
 #### `GET /api/v1/info` — Platform info, stats, supported tokens
 
+## Smart Contract Escrow (Phase 2)
+
+Agora uses an on-chain Solana program (Anchor) for trustless escrow of USDC payments.
+
+### Architecture
+
+```
+┌──────────────────────────────────────────────┐
+│             Express API (Phase 1)            │
+│  Auth │ Listings │ Orders │ Wallet │ Webhooks│
+├──────────────────────────────────────────────┤
+│             Services Layer                   │
+│  Escrow │ Carriers │ Tracking Oracle         │
+├──────────────────────────────────────────────┤
+│          Prisma ORM → PostgreSQL             │
+├──────────────────────────────────────────────┤
+│    Anchor Escrow Program (Solana Devnet)     │
+│  create │ ship │ deliver │ release │ dispute │
+└──────────────────────────────────────────────┘
+```
+
+### Tiered Escrow System
+
+| Tier | Value | Bond | Dispute Window | Signature |
+|------|-------|------|----------------|-----------|
+| 1 | < $100 | None | 72 hours | Not required |
+| 2 | $100-$500 | None | 7 days | Required |
+| 3 | > $500 | 10% seller bond | 14 days | Required |
+| 4 | Agent-to-Agent | 10% mutual | 7 days | Configurable |
+
+### Escrow Lifecycle
+
+```
+Created → [Seller Bond (Tier 3+)] → Shipped → Delivered → Completed
+    ↓                                              ↓
+ Cancelled                                      Disputed → Resolved
+```
+
+### On-Chain Instructions
+
+| Instruction | Who | Description |
+|---|---|---|
+| `create_escrow` | Buyer | Deposit USDC to vault PDA |
+| `deposit_seller_bond` | Seller | Security bond for Tier 3+ |
+| `mark_shipped` | Seller | Add tracking number |
+| `mark_delivered` | Platform Oracle | Confirm carrier delivery |
+| `release_escrow` | Buyer / Platform | Release funds to seller |
+| `open_dispute` | Buyer | Freeze escrow within window |
+| `resolve_dispute` | Platform | Distribute funds per resolution |
+| `cancel_escrow` | Buyer / Platform | Refund before shipment |
+
+### Program ID
+
+```
+5xdcfLVGm56Fd8twF4L1vqrqsnSj2QybNF5rbRJTbfri
+```
+
+### Building the Smart Contract
+
+```bash
+# Prerequisites: Rust, Solana CLI, Anchor CLI
+anchor build
+anchor test       # Run against localnet
+anchor deploy     # Deploy to devnet
+```
+
+---
+
+## Carrier Tracking
+
+Integrated carrier tracking with automatic escrow oracle updates.
+
+### Supported Carriers
+
+| Carrier | API | Auth |
+|---|---|---|
+| FedEx | Track API v1 (REST) | OAuth2 client credentials |
+| Canada Post | REST API | Basic auth |
+
+### Tracking Routes
+
+#### `GET /api/v1/orders/:id/tracking` — Get tracking status
+Returns stored tracking events + optional live carrier data.
+
+#### `POST /api/v1/orders/:id/tracking` — Add tracking (seller only)
+```bash
+curl -X POST http://localhost:3000/api/v1/orders/:id/tracking \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "trackingNumber": "794644790132",
+    "carrier": "fedex"
+  }'
+```
+
+### Tracking Oracle
+
+Background service that:
+1. Polls carrier APIs every 30 minutes for active shipments
+2. Logs tracking events to the database
+3. Calls `mark_delivered` on-chain when delivery is confirmed
+4. Calls `release_escrow` when the dispute window expires
+
+---
+
 ## Scripts
 
 | Command | Description |
@@ -275,12 +380,41 @@ curl -X POST http://localhost:3000/api/v1/buy-orders \
 | `npm run db:migrate` | Run Prisma migrations |
 | `npm run db:seed` | Seed database with test data |
 | `npm run db:studio` | Open Prisma Studio GUI |
+| `anchor build` | Build Solana escrow program |
+| `anchor test` | Run smart contract tests |
+| `anchor deploy` | Deploy to devnet |
+
+## Environment Variables
+
+### Phase 1 (Core)
+
+| Variable | Description | Default |
+|---|---|---|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://agora:agora_dev@localhost:5432/agora` |
+| `PORT` | Server port | `3000` |
+| `JWT_SECRET` | JWT signing secret | (required) |
+| `SOLANA_CLUSTER_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` |
+| `WALLET_ENCRYPTION_KEY` | 32-byte hex key for wallet encryption | (required) |
+
+### Phase 2 (Escrow & Tracking)
+
+| Variable | Description |
+|---|---|
+| `SOLANA_CLUSTER` | Solana cluster (`devnet`, `mainnet-beta`) |
+| `PLATFORM_AUTHORITY_KEYPAIR` | Base58 or JSON array of platform keypair |
+| `FEDEX_CLIENT_ID` | FedEx API client ID |
+| `FEDEX_CLIENT_SECRET` | FedEx API client secret |
+| `CANADA_POST_USERNAME` | Canada Post API username |
+| `CANADA_POST_PASSWORD` | Canada Post API password |
+| `USDC_MINT` | USDC token mint address |
+| `TRACKING_POLL_INTERVAL_MS` | Tracking poll interval (default: 1800000 / 30 min) |
 
 ## Network
 
 - **Chain:** Solana Devnet
 - **RPC:** `https://api.devnet.solana.com`
 - **USDC Mint:** `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
+- **Escrow Program:** `5xdcfLVGm56Fd8twF4L1vqrqsnSj2QybNF5rbRJTbfri`
 
 ## License
 

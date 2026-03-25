@@ -7,15 +7,11 @@
  * Logs all tracking events to the database.
  */
 
-import { PrismaClient } from '@prisma/client';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-import { Program, AnchorProvider, Wallet } from '@coral-xyz/anchor';
-import { getAssociatedTokenAddress } from '@solana/spl-token';
+import { prisma } from '../lib/prisma';
 import { createCarrierRegistry, CarrierRegistry, TrackingResult } from './carriers';
 import { logger } from '../utils/logger';
 import { config } from '../config';
-
-const prisma = new PrismaClient();
 
 export class TrackingOracle {
   private registry: CarrierRegistry;
