@@ -27,7 +27,16 @@ const app = express();
 
 // Global middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Allow inline styles/scripts for landing page
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+    },
+  },
 }));
 app.use(cors());
 app.use(compression());
