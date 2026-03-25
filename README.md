@@ -260,6 +260,50 @@ curl -X POST http://localhost:3000/api/v1/buy-orders \
 
 ---
 
+### Syndication Routes (`/api/v1/listings/:id/syndicate`)
+
+Push Agora listings to external marketplaces (eBay).
+
+#### `POST /api/v1/listings/:id/syndicate` — Syndicate to marketplace
+```bash
+curl -X POST http://localhost:3000/api/v1/listings/<id>/syndicate \
+  -H "X-API-Key: agora_..." \
+  -H "Content-Type: application/json" \
+  -d '{"marketplace": "ebay"}'
+```
+Returns: `{ "externalId": "...", "url": "https://ebay.com/itm/..." }`
+
+Uses stored eBay credentials (connect via OAuth first), or pass `credentials.refreshToken` in the body for one-time use.
+
+#### `GET /api/v1/listings/:id/syndicate` — Get syndication status
+Returns all marketplace syndications for a listing.
+
+#### `DELETE /api/v1/listings/:id/syndicate/:marketplace` — Remove from marketplace
+Delists the item on the external marketplace and marks syndication as ended.
+
+---
+
+### eBay Integration (`/api/v1/integrations/ebay`)
+
+Connect eBay seller accounts via OAuth2.
+
+#### `GET /api/v1/integrations/ebay/auth-url` — Get eBay OAuth consent URL
+Returns a URL to redirect the agent/user to authorize their eBay account.
+
+#### `POST /api/v1/integrations/ebay/callback` — Exchange auth code for tokens
+```bash
+curl -X POST http://localhost:3000/api/v1/integrations/ebay/callback \
+  -H "X-API-Key: agora_..." \
+  -H "Content-Type: application/json" \
+  -d '{"code": "<authorization_code_from_ebay>"}'
+```
+Tokens are encrypted at rest (AES-256-GCM) and stored per agent.
+
+#### `GET /api/v1/integrations/ebay/status` — Check connection status
+#### `DELETE /api/v1/integrations/ebay` — Disconnect eBay account
+
+---
+
 ### Health & Info
 
 #### `GET /health` — Health check
@@ -383,6 +427,8 @@ Background service that:
 | `anchor build` | Build Solana escrow program |
 | `anchor test` | Run smart contract tests |
 | `anchor deploy` | Deploy to devnet |
+| `./scripts/deploy.sh` | Production deploy (build + migrate + start) |
+| `./scripts/setup-env.sh` | Generate production secrets |
 
 ## Environment Variables
 
@@ -408,6 +454,58 @@ Background service that:
 | `CANADA_POST_PASSWORD` | Canada Post API password |
 | `USDC_MINT` | USDC token mint address |
 | `TRACKING_POLL_INTERVAL_MS` | Tracking poll interval (default: 1800000 / 30 min) |
+
+### Phase 3 (eBay Integration)
+
+| Variable | Description | Default |
+|---|---|---|
+| `EBAY_APP_ID` | eBay application ID (client ID) | — |
+| `EBAY_CERT_ID` | eBay certificate ID (client secret) | — |
+| `EBAY_DEV_ID` | eBay developer ID | — |
+| `EBAY_REDIRECT_URI` | eBay OAuth redirect URI | — |
+| `EBAY_SANDBOX` | Use eBay sandbox APIs | `true` |
+| `EBAY_USDC_TO_USD_RATE` | USDC→USD conversion rate | `1.0` |
+| `RAILWAY_PUBLIC_DOMAIN` | Railway deployment domain | — |
+
+## Deployment
+
+### Railway (Recommended)
+
+1. **Create Railway project** and link your Git repo
+2. **Add PostgreSQL addon** — `DATABASE_URL` is auto-set
+3. **Set environment variables** (use `scripts/setup-env.sh` to generate secrets)
+4. Railway auto-detects `railway.toml` and deploys
+
+Railway config:
+- Build: `npm ci && npx prisma generate && npm run build && mkdir -p dist/public && cp -r src/public/* dist/public/`
+- Start: `npx prisma migrate deploy && node dist/index.js`
+- Health check: `/health`
+
+### Manual Deployment
+
+```bash
+# Generate production secrets
+./scripts/setup-env.sh
+
+# Edit .env.production with your DATABASE_URL, eBay keys, etc.
+# Then deploy
+./scripts/deploy.sh
+```
+
+### eBay Developer Setup
+
+1. Create account at [developer.ebay.com](https://developer.ebay.com)
+2. Create an application (get App ID, Cert ID, Dev ID)
+3. Configure OAuth redirect URI
+4. Start with sandbox mode (`EBAY_SANDBOX=true`)
+5. Apply for production access when ready
+
+## Web Interface
+
+Agora serves a web interface at the root URL:
+- **`/`** — Landing page with live platform stats
+- **`/docs.html`** — Interactive API documentation
+- **`/features.html`** — Feature request board (submit, vote, browse)
 
 ## Network
 
