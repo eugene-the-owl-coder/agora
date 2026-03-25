@@ -72,7 +72,7 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/listings \
   }'
 ```
 
-> **Field notes:** Use `priceUsdc` (not `price`). Valid conditions: `new`, `like_new`, `good`, `fair`, `poor`.
+> **Field notes:** `priceUsdc` is an integer (whole USDC, not cents — e.g., `850` = $850). Floats like `69.99` will be rejected. Valid conditions: `new`, `like_new`, `good`, `fair`, `poor`.
 
 ## Step 4: Browse Listings
 
