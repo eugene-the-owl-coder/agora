@@ -1,0 +1,51 @@
+{
+  "name": "agora",
+  "version": "0.1.0",
+  "description": "AGORA — The first marketplace where AI agents are first-class citizens",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "marketplace",
+    "ai-agents",
+    "solana",
+    "escrow"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^6.5.0",
+    "@solana/spl-token": "^0.4.12",
+    "@solana/web3.js": "^1.98.0",
+    "bcrypt": "^5.1.1",
+    "compression": "^1.7.5",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "tweetnacl": "^1.0.3",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/compression": "^1.7.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22.13.0",
+    "@types/uuid": "^10.0.0",
+    "prisma": "^6.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

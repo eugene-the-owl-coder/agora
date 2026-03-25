@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Agent {
+  id                 String   @id @default(uuid())
+  name               String
+  email              String   @unique
+  apiKeyHash         String
+  apiKeyPrefix       String
+  walletAddress      String?
+  walletEncryptedKey String?
+  profileDescription String?
+  avatarUrl          String?
+  reputation         Float    @default(0)
+  totalSales         Int      @default(0)
+  totalPurchases     Int      @default(0)
+  isVerified         Boolean  @default(false)
+  operatorId         String?
+  permissions        Json     @default("[\"list\", \"buy\", \"sell\"]")
+  spendingLimits     Json     @default("{\"maxPerTx\": 1000000000, \"dailyCap\": 10000000000}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  operator          Agent?          @relation("AgentOperator", fields: [operatorId], references: [id])
+  subAgents         Agent[]         @relation("AgentOperator")
+  listings          Listing[]
+  buyOrders         Order[]         @relation("BuyerOrders")
+  sellOrders        Order[]         @relation("SellerOrders")
+  sentTransactions  Transaction[]   @relation("FromAgent")
+  receivedTransactions Transaction[] @relation("ToAgent")
+  webhooks          Webhook[]
+  featureRequests   FeatureRequest[]
+  persistentBuyOrders BuyOrder[]
+
+  @@index([apiKeyPrefix])
+  @@index([walletAddress])
+  @@index([email])
+}
+
+enum ListingCondition {
+  new
+  like_new
+  good
+  fair
+  poor
+}
+
+enum ListingStatus {
+  draft
+  active
+  sold
+  delisted
+  disputed
+}
+
+model Listing {
+  id               String           @id @default(uuid())
+  agentId          String
+  title            String
+  description      String
+  images           String[]
+  priceUsdc        BigInt
+  priceSol         BigInt?
+  category         String
+  condition        ListingCondition @default(new)
+  status           ListingStatus    @default(draft)
+  quantity         Int              @default(1)
+  metadata         Json             @default("{}")
+  externalListings Json             @default("{}")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  agent            Agent            @relation(fields: [agentId], references: [id])
+  orders           Order[]
+  matchedBuyOrders BuyOrder[]       @relation("MatchedListing")
+
+  @@index([agentId])
+  @@index([category])
+  @@index([status])
+  @@index([priceUsdc])
+}
+
+enum OrderStatus {
+  created
+  funded
+  fulfilled
+  completed
+  disputed
+  cancelled
+  refunded
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  listingId       String
+  buyerAgentId    String
+  sellerAgentId   String
+  amountUsdc      BigInt
+  escrowAddress   String?
+  escrowSignature String?
+  status          OrderStatus @default(created)
+  shippingInfo    Json?
+  trackingNumber  String?
+  disputeReason   String?
+  resolvedAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  listing         Listing       @relation(fields: [listingId], references: [id])
+  buyer           Agent         @relation("BuyerOrders", fields: [buyerAgentId], references: [id])
+  seller          Agent         @relation("SellerOrders", fields: [sellerAgentId], references: [id])
+  transactions    Transaction[]
+
+  @@index([buyerAgentId])
+  @@index([sellerAgentId])
+  @@index([status])
+}
+
+enum TxType {
+  escrow_fund
+  escrow_release
+  refund
+  withdrawal
+  deposit
+}
+
+enum TxStatus {
+  pending
+  confirmed
+  failed
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  orderId     String?
+  fromAgentId String?
+  toAgentId   String?
+  amountUsdc  BigInt?
+  amountSol   BigInt?
+  txSignature String?
+  txType      TxType
+  status      TxStatus @default(pending)
+  createdAt   DateTime @default(now())
+
+  order     Order? @relation(fields: [orderId], references: [id])
+  fromAgent Agent? @relation("FromAgent", fields: [fromAgentId], references: [id])
+  toAgent   Agent? @relation("ToAgent", fields: [toAgentId], references: [id])
+
+  @@index([orderId])
+  @@index([txSignature])
+}
+
+model Webhook {
+  id       String   @id @default(uuid())
+  agentId  String
+  url      String
+  events   String[]
+  secret   String
+  isActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  agent    Agent    @relation(fields: [agentId], references: [id])
+
+  @@index([agentId])
+}
+
+enum FeatureRequestStatus {
+  open
+  planned
+  building
+  shipped
+  rejected
+}
+
+model FeatureRequest {
+  id          String               @id @default(uuid())
+  agentId     String?
+  title       String
+  description String
+  votes       Int                  @default(0)
+  status      FeatureRequestStatus @default(open)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  agent       Agent?               @relation(fields: [agentId], references: [id])
+
+  @@index([votes])
+  @@index([status])
+}
+
+enum BuyOrderStatus {
+  active
+  paused
+  fulfilled
+  expired
+}
+
+model BuyOrder {
+  id                  String         @id @default(uuid())
+  agentId             String
+  searchQuery         String
+  maxPriceUsdc        BigInt
+  category            String?
+  condition           ListingCondition?
+  minSellerReputation Float?
+  autoBuy             Boolean        @default(false)
+  autoBuyMaxUsdc      BigInt?
+  status              BuyOrderStatus @default(active)
+  matchedListingId    String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  expiresAt           DateTime?
+
+  agent               Agent          @relation(fields: [agentId], references: [id])
+  matchedListing      Listing?       @relation("MatchedListing", fields: [matchedListingId], references: [id])
+
+  @@index([agentId])
+  @@index([status])
+}
