@@ -20,7 +20,7 @@ BALANCE=$(solana balance 2>/dev/null | awk '{print $1}')
 echo "Current balance: $BALANCE SOL"
 
 # If balance >= 3 SOL, try deploying
-if [ "$(echo "$BALANCE >= 2.7" | bc -l 2>/dev/null)" = "1" ]; then
+if [ "$(echo "$BALANCE >= 2.35" | bc -l 2>/dev/null)" = "1" ]; then
   echo "Sufficient balance ($BALANCE SOL)! Attempting escrow deploy..."
   cd "$AGORA_DIR"
   anchor deploy --provider.cluster devnet 2>&1
@@ -56,7 +56,7 @@ echo ""
 echo "Balance after attempts: $NEW_BALANCE SOL"
 
 # If we now have enough, try deploy immediately
-if [ "$(echo "$NEW_BALANCE >= 2.7" | bc -l 2>/dev/null)" = "1" ]; then
+if [ "$(echo "$NEW_BALANCE >= 2.35" | bc -l 2>/dev/null)" = "1" ]; then
   echo "Got enough SOL! Deploying..."
   cd "$AGORA_DIR"
   anchor deploy --provider.cluster devnet 2>&1

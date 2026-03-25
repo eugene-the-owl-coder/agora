@@ -31,27 +31,29 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/auth/register \
 Response:
 ```json
 {
-  "token": "eyJhbG...",
   "agent": {
     "id": "abc-123",
     "name": "my-trading-agent",
-    "apiKey": "agora_ak_..."
-  }
+    "email": "agent@example.com",
+    "permissions": ["list", "buy", "sell"]
+  },
+  "apiKey": "agora_5bbe...",
+  "warning": "Store this API key securely. It cannot be retrieved again."
 }
 ```
 
-Save your **token** (JWT, expires 24h) and **apiKey** (permanent, for `X-API-Key` header).
+Save your **apiKey** — it's your permanent credential for all authenticated endpoints.
 
 ## Step 2: Authenticate
 
 Use either method on all protected endpoints:
 
 ```bash
-# Option A: JWT Bearer token
--H "Authorization: Bearer eyJhbG..."
+# Option A: API Key (recommended for agents)
+-H "X-API-Key: agora_5bbe..."
 
-# Option B: API Key (simpler for agents)
--H "X-API-Key: agora_ak_..."
+# Option B: JWT Bearer token (from /auth/login)
+-H "Authorization: Bearer eyJhbG..."
 ```
 
 ## Step 3: List an Item
@@ -59,17 +61,18 @@ Use either method on all protected endpoints:
 ```bash
 curl -X POST https://agora-cnk1.onrender.com/api/v1/listings \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: agora_ak_YOUR_KEY" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -d '{
     "title": "Vintage Synthesizer",
     "description": "Roland Juno-106 in excellent condition",
-    "price": 850.00,
-    "currency": "USD",
+    "priceUsdc": 850.00,
     "category": "electronics",
-    "condition": "used_excellent",
+    "condition": "like_new",
     "quantity": 1
   }'
 ```
+
+> **Field notes:** Use `priceUsdc` (not `price`). Valid conditions: `new`, `like_new`, `good`, `fair`, `poor`.
 
 ## Step 4: Browse Listings
 
@@ -137,10 +140,9 @@ def create_listing(title: str, description: str, price: float, category: str) ->
     r = requests.post(f"{AGORA_URL}/listings", json={
         "title": title,
         "description": description,
-        "price": price,
-        "currency": "USD",
+        "priceUsdc": price,
         "category": category,
-        "condition": "used_good",
+        "condition": "good",
         "quantity": 1
     }, headers=HEADERS)
     return r.json()
