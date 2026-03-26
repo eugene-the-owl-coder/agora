@@ -325,6 +325,7 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/buy-orders \
 | POST | `/listings` | Yes | Create listing |
 | PUT | `/listings/:id` | Yes | Update listing |
 | DELETE | `/listings/:id` | Yes | Delete listing |
+| GET | `/images/proxy/:listingId/:filename` | No | Secure image proxy (rate limited) |
 | POST | `/orders` | Yes | Place order |
 | GET | `/orders` | Yes | List your orders |
 | POST | `/orders/:id/fulfill` | Yes | Mark fulfilled |

@@ -220,20 +220,58 @@
               <span class="method-post font-mono font-bold text-sm">POST</span>
               <code class="text-sm">/api/v1/listings/:id/images</code>
             </div>
-            <p class="text-gray-400 text-sm mb-3">Upload images to a listing. Owner only. Max 5 images per listing, 5MB each.</p>
+            <p class="text-gray-400 text-sm mb-3">Upload images to a listing. Owner only. Max 5 images per listing, 5MB each. All images are sanitized (metadata stripped, re-encoded, thumbnails generated). Only JPEG, PNG, WebP accepted — SVG and GIF are rejected.</p>
             <div class="bg-black/40 rounded-lg p-4">
               <pre class="text-xs text-gray-300">Content-Type: multipart/form-data
 Field name: "images" (repeatable)
-Supported: image/jpeg, image/png, image/webp
+Supported: image/jpeg, image/png, image/webp (validated via magic bytes)
+Rejected: SVG, GIF, BMP, TIFF (XSS/script vectors)
 Max size: 5MB per file
 Max count: 5 per listing
+
+🔒 Security pipeline:
+  1. Magic-byte validation (not just extension)
+  2. ALL metadata stripped (EXIF, IPTC, XMP)
+  3. Full re-encode (destroys embedded payloads)
+  4. Auto-resize (max 2048px) + thumbnail (400px)
 
 curl -X POST /api/v1/listings/:id/images \
   -H "X-API-Key: YOUR_KEY" \
   -F "images=@photo1.jpg" \
   -F "images=@photo2.png"
 
-Response: { listing: {..., images: ["/uploads/listings/..."]}, uploaded: [...] }</pre>
+Response: {
+  listing: {
+    ...,
+    images: [{
+      "url": "/api/v1/images/proxy/LISTING_ID/image.jpg",
+      "thumbnailUrl": "/api/v1/images/proxy/LISTING_ID/image.jpg?size=thumb",
+      "width": 1200,
+      "height": 800,
+      "sanitized": true,
+      "uploadedAt": "2026-03-26T..."
+    }]
+  },
+  uploaded: ["/api/v1/images/proxy/LISTING_ID/image.jpg"]
+}</pre>
+            </div>
+          </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-get font-mono font-bold text-sm">GET</span>
+              <code class="text-sm">/api/v1/images/proxy/:listingId/:filename</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">Secure image proxy. Serves sanitized images with security headers. Public, rate-limited per IP (60/min). Append <code>?size=thumb</code> for 400px thumbnail.</p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Security headers:
+  Content-Security-Policy: default-src 'none'; img-src 'self'
+  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=86400
+  X-Frame-Options: DENY
+
+Full-size:  GET /api/v1/images/proxy/LISTING_ID/image.jpg
+Thumbnail:  GET /api/v1/images/proxy/LISTING_ID/image.jpg?size=thumb</pre>
             </div>
           </div>
 
@@ -242,7 +280,7 @@ Response: { listing: {..., images: ["/uploads/listings/..."]}, uploaded: [...] }
               <span class="method-delete font-mono font-bold text-sm">DELETE</span>
               <code class="text-sm">/api/v1/listings/:id/images/:filename</code>
             </div>
-            <p class="text-gray-400 text-sm mb-3">Delete an image from a listing. Owner only.</p>
+            <p class="text-gray-400 text-sm mb-3">Delete an image from a listing. Owner only. Removes both sanitized image and thumbnail.</p>
             <div class="bg-black/40 rounded-lg p-4">
               <pre class="text-xs text-gray-300">Response: { listing: {...}, deleted: "filename.jpg" }</pre>
             </div>
