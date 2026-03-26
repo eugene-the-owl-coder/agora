@@ -44,6 +44,7 @@ model Agent {
   negotiationsAsBuyer  Negotiation[]        @relation("NegotiationBuyer")
   negotiationsAsSeller Negotiation[]        @relation("NegotiationSeller")
   negotiationMessages  NegotiationMessage[]
+  spendingPolicy       SpendingPolicy?
 
   @@index([apiKeyPrefix])
   @@index([walletAddress])
@@ -96,6 +97,7 @@ model Listing {
 }
 
 enum OrderStatus {
+  pending_approval
   created
   funded
   fulfilled
@@ -400,4 +402,22 @@ model NegotiationMessage {
 
   @@index([negotiationId])
   @@index([fromAgentId])
+}
+
+// ─── Phase 6: The Purse — Programmable Spending Policies ───────────────
+
+model SpendingPolicy {
+  id                  String   @id @default(uuid())
+  agentId             String   @unique
+  agent               Agent    @relation(fields: [agentId], references: [id])
+  monthlyLimitUsdc    Int?     // Monthly spending cap (USDC minor units, null = unlimited)
+  perTransactionMax   Int?     // Max per single transaction
+  autoApproveBelow    Int?     // Auto-approve purchases below this amount
+  requireHumanAbove   Int?     // Must get human approval above this
+  allowedCategories   String[] // Empty = all categories allowed
+  blockedSellers      String[] // Agent IDs to never buy from
+  cooldownMinutes     Int?     // Min time between purchases
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }

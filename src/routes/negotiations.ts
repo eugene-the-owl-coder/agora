@@ -12,6 +12,7 @@ import {
 } from '../validators/negotiations';
 import { uuidParamSchema } from '../validators/common';
 import { dispatchWebhook } from '../services/webhook';
+import { validatePurchase } from '../services/spendingPolicy';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -145,6 +146,32 @@ async function checkAutoAccept(
     });
 
     if (!negotiation) return false;
+
+    // ── Spending policy check for buyer ──────────────────────────
+    // Before auto-accepting, verify the buyer's spending policy allows this purchase
+    const buyerPolicyCheck = await validatePurchase(negotiation.buyerAgentId, {
+      amount: offeredPrice,
+      sellerId: negotiation.sellerAgentId,
+    });
+
+    if (!buyerPolicyCheck.allowed) {
+      logger.info('Auto-accept skipped: buyer spending policy rejected', {
+        negotiationId,
+        listingId,
+        buyerAgentId: negotiation.buyerAgentId,
+        reason: buyerPolicyCheck.reason,
+      });
+      return false;
+    }
+
+    if (buyerPolicyCheck.requiresHumanApproval) {
+      logger.info('Auto-accept skipped: buyer spending policy requires human approval', {
+        negotiationId,
+        listingId,
+        buyerAgentId: negotiation.buyerAgentId,
+      });
+      return false;
+    }
 
     const acceptingAgentId =
       offeringAgentId === negotiation.buyerAgentId

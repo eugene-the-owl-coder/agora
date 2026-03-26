@@ -23,6 +23,7 @@ import ebayAuthRoutes from './routes/ebayAuth';
 import shippingRoutes from './routes/shipping';
 import disputeRoutes from './routes/disputes';
 import negotiationRoutes from './routes/negotiations';
+import spendingPolicyRoutes from './routes/spendingPolicy';
 import { getTrackingOracle } from './services/trackingOracle';
 import { oracleRouter, oracleOrderRouter } from './routes/oracle';
 
@@ -108,6 +109,7 @@ app.use('/api/v1/oracle', oracleRouter);
 app.use('/api/v1/orders', oracleOrderRouter);
 app.use('/api/v1/orders', disputeRoutes);
 app.use('/api/v1', negotiationRoutes);
+app.use('/api/v1/agents/me', spendingPolicyRoutes);
 
 // 404 handler
 app.use((_req, res) => {

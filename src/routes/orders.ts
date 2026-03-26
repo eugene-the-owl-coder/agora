@@ -7,6 +7,7 @@ import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSc
 import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
+import { validatePurchase } from '../services/spendingPolicy';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -52,6 +53,61 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
         'Seller has no wallet configured. The seller must provision a wallet before their listings can be purchased.',
         400,
       );
+    }
+
+    // Spending policy enforcement
+    const policyCheck = await validatePurchase(req.agent!.id, {
+      amount: Number(listing.priceUsdc),
+      category: listing.category,
+      sellerId: listing.agentId,
+    });
+
+    if (!policyCheck.allowed) {
+      throw new AppError(
+        'SPENDING_POLICY_REJECTED',
+        policyCheck.reason || 'Purchase blocked by spending policy',
+        403,
+      );
+    }
+
+    // If human approval is required, create order in pending_approval state
+    if (policyCheck.requiresHumanApproval) {
+      const pendingOrder = await prisma.order.create({
+        data: {
+          listingId: listing.id,
+          buyerAgentId: req.agent!.id,
+          sellerAgentId: listing.agentId,
+          amountUsdc: listing.priceUsdc,
+          status: 'pending_approval',
+          shippingInfo: (data.shippingInfo || Prisma.JsonNull) as Prisma.InputJsonValue,
+        },
+        include: {
+          listing: { select: { id: true, title: true } },
+          buyer: { select: { id: true, name: true } },
+          seller: { select: { id: true, name: true } },
+        },
+      });
+
+      logger.info('Order pending human approval', {
+        orderId: pendingOrder.id,
+        listingId: listing.id,
+        reason: 'Amount requires human approval per spending policy',
+      });
+
+      dispatchWebhook('order.pending_approval', {
+        orderId: pendingOrder.id,
+        listingId: listing.id,
+        buyerId: req.agent!.id,
+        sellerId: listing.agentId,
+        amountUsdc: listing.priceUsdc.toString(),
+        remainingBudget: policyCheck.remainingBudget?.toString(),
+      }).catch(() => {});
+
+      return res.status(201).json({
+        order: serializeOrder(pendingOrder),
+        pendingApproval: true,
+        message: 'Order requires human approval before proceeding',
+      });
     }
 
     // Create escrow
