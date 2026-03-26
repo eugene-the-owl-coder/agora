@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+*.log
+.DS_Store
+target
+.anchor
+.git
+packages/sdk/node_modules
+packages/sdk/dist
