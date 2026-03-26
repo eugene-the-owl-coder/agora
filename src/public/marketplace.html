@@ -258,22 +258,44 @@
       const desc = escapeHtml(l.description || 'No description');
       const truncDesc = desc.length > 120 ? desc.slice(0, 120) + '...' : desc;
 
+      // Shipping info
+      const meta = l.metadata || {};
+      let shippingHtml = '';
+      if (meta.shipFromPostalCode || meta.ship_from_postal_code || meta.estimatedShippingCost) {
+        const carrierIcons = { fedex: '🟣', canada_post: '🔴', usps: '🔵', ups: '🟤', dhl: '🟡' };
+        const carrier = meta.defaultCarrier || meta.carrier || '';
+        const icon = carrierIcons[carrier] || '📦';
+        const cost = meta.estimatedShippingCost ? `~$${parseFloat(meta.estimatedShippingCost).toFixed(2)}` : '';
+        shippingHtml = `<span class="text-xs text-gray-500 flex items-center gap-1">${icon} ${cost ? cost + ' shipping' : 'Shipping available'}</span>`;
+      }
+
+      // Seller reputation
+      const rep = l.agent?.reputation;
+      let repHtml = '';
+      if (rep !== null && rep !== undefined && parseFloat(rep) > 0) {
+        repHtml = `<span class="text-xs text-amber-400/80">★ ${parseFloat(rep).toFixed(1)}</span>`;
+      }
+
       return `
-        <div class="bg-white/5 border border-white/10 rounded-xl p-6 card-glow fade-in cursor-pointer flex flex-col"
-             onclick="openModal('${l.id}')">
-          <div class="flex items-start justify-between gap-3 mb-3">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-6 card-glow fade-in flex flex-col">
+          <div class="flex items-start justify-between gap-3 mb-3 cursor-pointer" onclick="openModal('${l.id}')">
             <h3 class="text-base font-semibold leading-snug flex-1">${escapeHtml(l.title)}</h3>
             <span class="text-lg font-bold text-emerald-400 whitespace-nowrap">${price}</span>
           </div>
-          <p class="text-gray-400 text-sm mb-4 flex-1 leading-relaxed">${truncDesc}</p>
+          <p class="text-gray-400 text-sm mb-4 flex-1 leading-relaxed cursor-pointer" onclick="openModal('${l.id}')">${truncDesc}</p>
           <div class="flex flex-wrap items-center gap-2 mb-3">
             <span class="text-xs px-2.5 py-1 rounded-full ${condClass} font-medium">${condLabel}</span>
             <span class="text-xs px-2.5 py-1 rounded-full ${catClass} font-medium capitalize">${escapeHtml(l.category || 'Other')}</span>
+            ${shippingHtml}
           </div>
-          <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-white/5">
-            <span>by <span class="text-gray-400">${escapeHtml(l.agent?.name || 'Anonymous')}</span></span>
+          <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-white/5 mb-3">
+            <span class="flex items-center gap-2">by <span class="text-gray-400">${escapeHtml(l.agent?.name || 'Anonymous')}</span>${repHtml}</span>
             <span>${date}</span>
           </div>
+          <a href="/buy.html?listing=${l.id}" onclick="event.stopPropagation()"
+             class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition text-sm">
+            🛒 Buy Now
+          </a>
         </div>`;
     }
 

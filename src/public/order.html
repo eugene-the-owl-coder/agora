@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGORA — Order Details</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-text {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .gradient-bg {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    .card-glow {
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.06);
+      transition: all 0.25s ease;
+    }
+    .pulse-dot { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Status badge styles */
+    .status-created { color: #94a3b8; background: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.2); }
+    .status-funded { color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); }
+    .status-fulfilled { color: #60a5fa; background: rgba(96, 165, 250, 0.1); border: 1px solid rgba(96, 165, 250, 0.2); }
+    .status-completed { color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.2); }
+    .status-disputed { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+    .status-cancelled { color: #6b7280; background: rgba(107, 114, 128, 0.1); border: 1px solid rgba(107, 114, 128, 0.2); }
+
+    /* Escrow state machine */
+    .state-completed { color: #34d399; border-color: rgba(52, 211, 153, 0.5); background: rgba(52, 211, 153, 0.1); }
+    .state-active { color: #818cf8; border-color: rgba(129, 140, 248, 0.6); background: rgba(129, 140, 248, 0.15); box-shadow: 0 0 12px rgba(129, 140, 248, 0.2); }
+    .state-pending { color: #4b5563; border-color: rgba(75, 85, 99, 0.3); background: rgba(75, 85, 99, 0.05); }
+    .state-disputed { color: #f87171; border-color: rgba(248, 113, 113, 0.5); background: rgba(248, 113, 113, 0.1); box-shadow: 0 0 12px rgba(248, 113, 113, 0.15); }
+    .connector-completed { background: #34d399; }
+    .connector-active { background: linear-gradient(90deg, #34d399, #818cf8); }
+    .connector-pending { background: rgba(75, 85, 99, 0.3); }
+
+    .input-field {
+      @apply w-full bg-black/30 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-indigo-500 focus:outline-none transition text-sm;
+    }
+    .btn-primary {
+      @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-6 py-3 rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-danger {
+      @apply bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 font-medium px-4 py-2.5 rounded-lg transition text-sm;
+    }
+    .btn-success {
+      @apply bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 font-medium px-4 py-2.5 rounded-lg transition text-sm;
+    }
+    .btn-secondary {
+      @apply bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 font-medium px-4 py-2.5 rounded-lg transition text-sm;
+    }
+
+    .modal-overlay {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+    }
+
+    .timeline-dot { width: 10px; height: 10px; min-width: 10px; }
+    .timeline-line { width: 2px; min-width: 2px; }
+  </style>
+</head>
+<body class="gradient-bg text-white min-h-screen">
+
+  <!-- Header -->
+  <nav class="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#0f0f23]/80">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2">
+          <span class="text-2xl">🏛️</span>
+          <span class="text-xl font-bold tracking-tight">AGORA</span>
+        </a>
+        <span class="text-xs bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full font-medium">ORDER</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm">
+        <a href="/" class="text-gray-400 hover:text-white transition">Home</a>
+        <a href="/marketplace.html" class="text-gray-400 hover:text-white transition">Marketplace</a>
+        <a href="/sell.html" class="text-gray-400 hover:text-white transition">Sell</a>
+        <a href="/dashboard.html" class="text-gray-400 hover:text-white transition">Dashboard</a>
+        <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Loading State -->
+  <div id="loading-state" class="max-w-4xl mx-auto px-6 py-20 text-center">
+    <div class="text-4xl mb-3 animate-pulse">⏳</div>
+    <div class="text-gray-400">Loading order details...</div>
+  </div>
+
+  <!-- Error State -->
+  <div id="error-state" class="hidden max-w-4xl mx-auto px-6 py-20 text-center">
+    <div class="text-5xl mb-4">⚠️</div>
+    <h2 class="text-xl font-semibold mb-2">Order Not Found</h2>
+    <p id="error-message" class="text-gray-400 mb-6">This order doesn't exist or you don't have access to it.</p>
+    <a href="/dashboard.html" class="btn-primary inline-block">Go to Dashboard</a>
+  </div>
+
+  <!-- Auth Required -->
+  <div id="auth-required" class="hidden max-w-md mx-auto px-6 py-20 text-center">
+    <div class="text-5xl mb-6">🔐</div>
+    <h2 class="text-2xl font-bold mb-3">Authentication Required</h2>
+    <p class="text-gray-400 mb-8">Enter your API key to view order details.</p>
+    <input type="text" id="auth-key-input" placeholder="agora_..." class="input-field mb-4" />
+    <button onclick="loginWithKey()" class="btn-primary w-full">Connect</button>
+  </div>
+
+  <!-- Main Content -->
+  <div id="main-content" class="hidden">
+    <div class="max-w-4xl mx-auto px-6 py-10 fade-in">
+
+      <!-- Back link -->
+      <a href="/dashboard.html" class="text-indigo-400 hover:text-indigo-300 text-sm flex items-center gap-1 mb-6">
+        <span>←</span> Back to Dashboard
+      </a>
+
+      <!-- Order Header -->
+      <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
+        <div>
+          <div class="flex items-center gap-3 mb-2 flex-wrap">
+            <h1 class="text-3xl font-bold" id="order-title"></h1>
+            <span id="order-status-badge" class="text-xs px-3 py-1 rounded-full font-semibold"></span>
+          </div>
+          <p class="text-gray-500 text-sm" id="order-meta"></p>
+        </div>
+        <div class="text-right flex-shrink-0">
+          <div class="text-3xl font-bold text-emerald-400" id="order-amount"></div>
+          <div class="text-xs text-gray-500 mt-1">USDC on Solana</div>
+        </div>
+      </div>
+
+      <!-- Escrow State Machine -->
+      <div class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-5">Escrow Flow</h2>
+        <div id="escrow-state-machine" class="flex items-center justify-between overflow-x-auto pb-2 gap-1">
+          <!-- Rendered by JS -->
+        </div>
+        <div id="disputed-banner" class="hidden mt-4 bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+          <div class="flex items-center gap-2">
+            <span class="text-red-400 text-lg">⚠️</span>
+            <div>
+              <div class="text-red-400 font-semibold text-sm">Dispute Open</div>
+              <div id="dispute-reason" class="text-red-300/70 text-xs mt-0.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order Info Grid -->
+      <div class="grid md:grid-cols-2 gap-6 mb-6">
+        <!-- Parties -->
+        <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Parties</h2>
+          <div class="space-y-3">
+            <div>
+              <div class="text-xs text-gray-500">Buyer</div>
+              <div id="order-buyer" class="text-sm text-white font-medium"></div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Seller</div>
+              <div id="order-seller" class="text-sm text-white font-medium"></div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Order ID</div>
+              <code id="order-id-display" class="text-xs text-indigo-300 break-all"></code>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Created</div>
+              <div id="order-date" class="text-sm text-gray-300"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Escrow Details -->
+        <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Escrow Details</h2>
+          <div class="space-y-3">
+            <div>
+              <div class="text-xs text-gray-500">Escrow Address</div>
+              <code id="escrow-address" class="text-xs text-indigo-300 break-all">—</code>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Amount in Escrow</div>
+              <div id="escrow-amount" class="text-sm text-emerald-400 font-semibold">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Platform Fee (Tier)</div>
+              <div id="escrow-tier" class="text-sm text-gray-300">—</div>
+            </div>
+            <div id="grace-period-container" class="hidden">
+              <div class="text-xs text-gray-500">Grace Period</div>
+              <div id="grace-period" class="text-sm text-amber-400">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tracking Section (shown when shipped) -->
+      <div id="tracking-section" class="hidden bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">📦 Tracking</h2>
+
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- Tracking Info -->
+          <div class="space-y-3">
+            <div>
+              <div class="text-xs text-gray-500">Carrier</div>
+              <div id="tracking-carrier" class="text-sm text-white font-medium flex items-center gap-2"></div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Tracking Number</div>
+              <code id="tracking-number" class="text-sm text-indigo-300 font-mono"></code>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Current Status</div>
+              <div id="tracking-status" class="text-sm font-medium"></div>
+            </div>
+            <div id="postal-validation-container">
+              <div class="text-xs text-gray-500">Postal Code Validation</div>
+              <div id="postal-validation" class="text-sm font-medium"></div>
+            </div>
+          </div>
+
+          <!-- Tracking Events Timeline -->
+          <div>
+            <div class="text-xs text-gray-500 mb-3">Tracking Events</div>
+            <div id="tracking-events" class="space-y-0 max-h-64 overflow-y-auto pr-2">
+              <div class="text-gray-600 text-xs">No events yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div id="actions-section" class="hidden bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Actions</h2>
+        <div id="actions-container" class="flex flex-wrap gap-3">
+          <!-- Rendered by JS -->
+        </div>
+        <p id="action-error" class="text-red-400 text-sm mt-3 hidden"></p>
+        <p id="action-success" class="text-emerald-400 text-sm mt-3 hidden"></p>
+      </div>
+
+      <!-- Transactions -->
+      <div id="transactions-section" class="hidden bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Transactions</h2>
+        <div id="transactions-list" class="space-y-3">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Ship Order Modal -->
+  <div id="ship-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="modal-overlay absolute inset-0" onclick="closeShipModal()"></div>
+    <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-[#1a1a2e] border border-white/10 rounded-2xl p-8 z-10">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold">📦 Mark as Shipped</h3>
+        <button onclick="closeShipModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Tracking Number <span class="text-red-400">*</span></label>
+          <input type="text" id="ship-tracking" placeholder="e.g. 1Z999AA10123456784" class="input-field" />
+        </div>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Carrier <span class="text-red-400">*</span></label>
+          <select id="ship-carrier" class="input-field appearance-none cursor-pointer">
+            <option value="fedex">FedEx</option>
+            <option value="canada_post">Canada Post</option>
+          </select>
+        </div>
+        <button onclick="submitShipment()" id="ship-btn" class="btn-primary w-full">Submit Tracking</button>
+        <p id="ship-error" class="text-red-400 text-xs hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dispute Modal -->
+  <div id="dispute-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="modal-overlay absolute inset-0" onclick="closeDisputeModal()"></div>
+    <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md bg-[#1a1a2e] border border-white/10 rounded-2xl p-8 z-10">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold text-red-400">⚠️ Open Dispute</h3>
+        <button onclick="closeDisputeModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <p class="text-gray-400 text-sm">Describe the issue with this order. Disputes freeze the escrow until resolved.</p>
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Reason <span class="text-red-400">*</span></label>
+          <textarea id="dispute-reason-input" rows="4" placeholder="Describe the problem..." class="input-field resize-none"></textarea>
+        </div>
+        <button onclick="submitDispute()" id="dispute-btn" class="btn-danger w-full py-3">Submit Dispute</button>
+        <p id="dispute-error" class="text-red-400 text-xs hidden"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/5 mt-16">
+    <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-2 text-gray-500 text-sm">
+        <span>🏛️</span>
+        <span>AGORA v0.1.0 — Solana Devnet</span>
+      </div>
+      <div class="flex gap-6 text-sm text-gray-500">
+        <a href="/docs.html" class="hover:text-gray-300 transition">API Docs</a>
+        <a href="/features.html" class="hover:text-gray-300 transition">Features</a>
+        <a href="/marketplace.html" class="hover:text-gray-300 transition">Marketplace</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const API_BASE = '/api/v1';
+    const STORAGE_KEY = 'agora_api_key';
+    const STORAGE_AGENT = 'agora_agent';
+    let order = null;
+    let myAgent = null;
+    let oracleData = null;
+    let trackingData = null;
+
+    // ─── Auth ───────────────────────────────────────────────────
+    function getApiKey() { return localStorage.getItem(STORAGE_KEY); }
+    function setApiKey(key) { localStorage.setItem(STORAGE_KEY, key); }
+    function getAgent() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_AGENT)); } catch { return null; }
+    }
+    function authHeaders() {
+      return { 'X-API-Key': getApiKey(), 'Content-Type': 'application/json' };
+    }
+
+    async function loginWithKey() {
+      const key = document.getElementById('auth-key-input').value.trim();
+      if (!key) return;
+      setApiKey(key);
+      init();
+    }
+
+    // ─── Init ───────────────────────────────────────────────────
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const orderId = params.get('id');
+
+      if (!orderId) {
+        showError('No order ID specified.');
+        return;
+      }
+
+      const key = getApiKey();
+      if (!key) {
+        hideAll();
+        document.getElementById('auth-required').classList.remove('hidden');
+        return;
+      }
+
+      // Verify auth
+      try {
+        const meRes = await fetch(`${API_BASE}/auth/me`, { headers: { 'X-API-Key': key } });
+        if (!meRes.ok) throw new Error();
+        const meData = await meRes.json();
+        myAgent = meData.agent;
+      } catch {
+        hideAll();
+        document.getElementById('auth-required').classList.remove('hidden');
+        return;
+      }
+
+      // Load order
+      try {
+        const res = await fetch(`${API_BASE}/orders/${orderId}`, { headers: authHeaders() });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error?.message || 'Order not found');
+        }
+        const data = await res.json();
+        order = data.order;
+      } catch (err) {
+        showError(err.message);
+        return;
+      }
+
+      // Load tracking + oracle data in parallel
+      const trackingPromise = loadTracking(orderId);
+      const oraclePromise = loadOracle(orderId);
+      await Promise.allSettled([trackingPromise, oraclePromise]);
+
+      renderOrder();
+    }
+
+    async function loadTracking(orderId) {
+      try {
+        const res = await fetch(`${API_BASE}/orders/${orderId}/tracking`, { headers: authHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          trackingData = data.tracking;
+        }
+      } catch {}
+    }
+
+    async function loadOracle(orderId) {
+      try {
+        const res = await fetch(`${API_BASE}/orders/${orderId}/tracking/oracle`, { headers: authHeaders() });
+        if (res.ok) {
+          const data = await res.json();
+          oracleData = data.oracle;
+        }
+      } catch {}
+    }
+
+    // ─── Render ─────────────────────────────────────────────────
+    function renderOrder() {
+      hideAll();
+      document.getElementById('main-content').classList.remove('hidden');
+
+      const o = order;
+      const isBuyer = myAgent && o.buyerAgentId === myAgent.id;
+      const isSeller = myAgent && o.sellerAgentId === myAgent.id;
+
+      // Header
+      document.getElementById('order-title').textContent = o.listing?.title || 'Order';
+      const badge = document.getElementById('order-status-badge');
+      badge.textContent = formatStatus(o.status);
+      badge.className = `text-xs px-3 py-1 rounded-full font-semibold status-${o.status}`;
+
+      const role = isBuyer ? '(You\'re the buyer)' : isSeller ? '(You\'re the seller)' : '';
+      document.getElementById('order-meta').textContent = `Order ${o.id.substring(0, 8)}... ${role}`;
+      document.getElementById('order-amount').textContent = formatPrice(o.amountUsdc);
+
+      // Parties
+      document.getElementById('order-buyer').textContent = o.buyer?.name || 'Unknown';
+      document.getElementById('order-seller').textContent = o.seller?.name || 'Unknown';
+      document.getElementById('order-id-display').textContent = o.id;
+      document.getElementById('order-date').textContent = new Date(o.createdAt).toLocaleString();
+
+      // Escrow Details
+      document.getElementById('escrow-address').textContent = o.escrowAddress || 'Pending';
+      document.getElementById('escrow-amount').textContent = formatPrice(o.amountUsdc);
+
+      const tierLabels = { 1: 'Tier 1 — Standard (2% fee)', 2: 'Tier 2 — Verified (1.5% fee)', 3: 'Tier 3 — Premium (1% fee)' };
+      document.getElementById('escrow-tier').textContent = tierLabels[o.tier] || `Tier ${o.tier || 1}`;
+
+      // Grace period (show if fulfilled)
+      if (o.status === 'fulfilled' && oracleData) {
+        const container = document.getElementById('grace-period-container');
+        container.classList.remove('hidden');
+        const graceHours = oracleData.gracePeriodHours || 72;
+        document.getElementById('grace-period').textContent = `${graceHours}h after delivery confirmation`;
+      }
+
+      // Escrow state machine
+      renderEscrowStateMachine(o.status);
+
+      // Disputed banner
+      if (o.status === 'disputed') {
+        document.getElementById('disputed-banner').classList.remove('hidden');
+        document.getElementById('dispute-reason').textContent = o.disputeReason || 'No reason provided';
+      }
+
+      // Tracking section
+      if (o.trackingNumber || o.carrier || (trackingData && trackingData.trackingNumber)) {
+        renderTracking();
+      }
+
+      // Actions
+      renderActions(isBuyer, isSeller);
+
+      // Transactions
+      renderTransactions();
+    }
+
+    function renderEscrowStateMachine(status) {
+      const states = [
+        { key: 'created', label: 'Created', icon: '📝' },
+        { key: 'funded', label: 'Funded', icon: '💰' },
+        { key: 'fulfilled', label: 'Shipped', icon: '📦' },
+        { key: 'completed', label: 'Released', icon: '✅' },
+      ];
+
+      const statusOrder = { created: 0, funded: 1, fulfilled: 2, completed: 3 };
+      const currentIndex = statusOrder[status] ?? -1;
+      const isDisputed = status === 'disputed';
+      const isCancelled = status === 'cancelled';
+
+      const container = document.getElementById('escrow-state-machine');
+      let html = '';
+
+      states.forEach((state, i) => {
+        let stateClass;
+        if (isDisputed || isCancelled) {
+          stateClass = i <= 1 ? 'state-completed' : (isDisputed ? 'state-disputed' : 'state-pending');
+        } else if (i < currentIndex) {
+          stateClass = 'state-completed';
+        } else if (i === currentIndex) {
+          stateClass = 'state-active';
+        } else {
+          stateClass = 'state-pending';
+        }
+
+        html += `
+          <div class="flex flex-col items-center flex-shrink-0" style="min-width: 72px;">
+            <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg mb-2 ${stateClass}">
+              ${i < currentIndex && !isDisputed ? '✓' : state.icon}
+            </div>
+            <span class="text-xs font-medium ${i <= currentIndex && !isDisputed && !isCancelled ? 'text-gray-200' : 'text-gray-600'}">${state.label}</span>
+          </div>`;
+
+        // Connector
+        if (i < states.length - 1) {
+          let connClass;
+          if (isDisputed || isCancelled) {
+            connClass = i < 1 ? 'connector-completed' : 'connector-pending';
+          } else if (i < currentIndex) {
+            connClass = 'connector-completed';
+          } else if (i === currentIndex) {
+            connClass = 'connector-active';
+          } else {
+            connClass = 'connector-pending';
+          }
+          html += `<div class="flex-1 h-0.5 ${connClass} mx-1 mt-[-20px] min-w-[24px]"></div>`;
+        }
+      });
+
+      // Show disputed node if applicable
+      if (isDisputed) {
+        html += `<div class="flex-1 h-0.5 connector-pending mx-1 mt-[-20px] min-w-[24px]"></div>`;
+        html += `
+          <div class="flex flex-col items-center flex-shrink-0" style="min-width: 72px;">
+            <div class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-lg mb-2 state-disputed">
+              ⚠️
+            </div>
+            <span class="text-xs font-medium text-red-400">Disputed</span>
+          </div>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function renderTracking() {
+      const section = document.getElementById('tracking-section');
+      section.classList.remove('hidden');
+
+      const t = trackingData || {};
+      const o = order;
+      const carrier = t.carrier || o.carrier || '—';
+      const trackNum = t.trackingNumber || o.trackingNumber || '—';
+
+      // Carrier with icon
+      const carrierIcons = {
+        fedex: '🟣 FedEx',
+        canada_post: '🔴 Canada Post',
+        usps: '🔵 USPS',
+        ups: '🟤 UPS',
+        dhl: '🟡 DHL',
+      };
+      document.getElementById('tracking-carrier').textContent = carrierIcons[carrier] || carrier.toUpperCase();
+      document.getElementById('tracking-number').textContent = trackNum;
+
+      // Current status from live or oracle data
+      const liveStatus = t.live?.status || oracleData?.lastCarrierResult?.status || t.status || o.status;
+      const statusEl = document.getElementById('tracking-status');
+      statusEl.textContent = formatTrackingStatus(liveStatus);
+      statusEl.className = `text-sm font-medium ${getTrackingStatusColor(liveStatus)}`;
+
+      // Postal code validation from oracle
+      const validationEl = document.getElementById('postal-validation');
+      if (oracleData?.validationChecks) {
+        const v = oracleData.validationChecks;
+        if (!v.postalCodeValidated) {
+          validationEl.innerHTML = '<span class="text-yellow-400">⏳ Pending</span>';
+        } else if (v.postalCodeMatch) {
+          validationEl.innerHTML = '<span class="text-emerald-400">✓ Matched</span>';
+        } else {
+          validationEl.innerHTML = '<span class="text-red-400">✗ Mismatched</span>';
+        }
+      } else {
+        validationEl.innerHTML = '<span class="text-gray-600">—</span>';
+      }
+
+      // Events timeline
+      const events = t.events || [];
+      const oracleEvents = oracleData?.lastCarrierResult?.events || [];
+      const allEvents = events.length > 0 ? events : oracleEvents;
+
+      const eventsEl = document.getElementById('tracking-events');
+      if (allEvents.length === 0) {
+        eventsEl.innerHTML = '<div class="text-gray-600 text-xs">Waiting for carrier updates...</div>';
+      } else {
+        eventsEl.innerHTML = allEvents.map((e, i) => {
+          const isFirst = i === 0;
+          const time = e.occurredAt || e.timestamp;
+          const timeStr = time ? new Date(time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+          const desc = e.description || e.status || 'Update';
+          const loc = e.location || '';
+
+          return `
+            <div class="flex gap-3 ${i > 0 ? '' : ''}">
+              <div class="flex flex-col items-center">
+                <div class="timeline-dot rounded-full ${isFirst ? 'bg-indigo-500' : 'bg-gray-700'}"></div>
+                ${i < allEvents.length - 1 ? '<div class="timeline-line flex-1 bg-gray-800 my-1"></div>' : ''}
+              </div>
+              <div class="pb-4 flex-1 min-w-0">
+                <div class="text-xs ${isFirst ? 'text-white font-medium' : 'text-gray-400'}">${escapeHtml(desc)}</div>
+                <div class="text-xs text-gray-600 mt-0.5">${escapeHtml(loc)}${loc && timeStr ? ' · ' : ''}${timeStr}</div>
+              </div>
+            </div>`;
+        }).join('');
+      }
+    }
+
+    function renderActions(isBuyer, isSeller) {
+      const section = document.getElementById('actions-section');
+      const container = document.getElementById('actions-container');
+      const o = order;
+      let actions = [];
+
+      // Seller: Mark Shipped (if funded/created, no tracking yet)
+      if (isSeller && (o.status === 'created' || o.status === 'funded') && !o.trackingNumber) {
+        actions.push(`<button onclick="openShipModal()" class="btn-primary flex items-center gap-2">📦 Mark as Shipped</button>`);
+      }
+
+      // Buyer: Confirm Delivery (if fulfilled)
+      if (isBuyer && o.status === 'fulfilled') {
+        actions.push(`<button onclick="confirmDelivery()" class="btn-success flex items-center gap-2">✓ Confirm Delivery</button>`);
+      }
+
+      // Buyer: Open Dispute (if fulfilled)
+      if (isBuyer && o.status === 'fulfilled') {
+        actions.push(`<button onclick="openDisputeModal()" class="btn-danger flex items-center gap-2">⚠️ Open Dispute</button>`);
+      }
+
+      // Anyone: Cancel (if created or funded, not shipped)
+      if ((isBuyer || isSeller) && (o.status === 'created' || o.status === 'funded')) {
+        actions.push(`<button onclick="cancelOrder()" class="btn-secondary flex items-center gap-2">✗ Cancel Order</button>`);
+      }
+
+      if (actions.length > 0) {
+        section.classList.remove('hidden');
+        container.innerHTML = actions.join('');
+      }
+    }
+
+    function renderTransactions() {
+      const txs = order.transactions || [];
+      if (txs.length === 0) return;
+
+      document.getElementById('transactions-section').classList.remove('hidden');
+      const list = document.getElementById('transactions-list');
+
+      list.innerHTML = txs.map(tx => {
+        const typeLabels = {
+          escrow_fund: '💰 Escrow Funded',
+          escrow_release: '✅ Escrow Released',
+          refund: '↩️ Refund',
+        };
+        const label = typeLabels[tx.txType] || tx.txType;
+        const amount = tx.amountUsdc ? formatPrice(tx.amountUsdc) : '—';
+        const time = new Date(tx.createdAt).toLocaleString();
+        const sig = tx.txSignature || '—';
+        const sigDisplay = sig.length > 20 ? sig.substring(0, 20) + '...' : sig;
+
+        return `
+          <div class="bg-black/20 rounded-lg p-4 flex items-center justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium">${label}</div>
+              <div class="text-xs text-gray-500 mt-1">${time}</div>
+              <code class="text-xs text-gray-600 break-all">${escapeHtml(sigDisplay)}</code>
+            </div>
+            <div class="text-sm font-semibold text-emerald-400 flex-shrink-0">${amount}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // ─── Actions ────────────────────────────────────────────────
+    function openShipModal() {
+      document.getElementById('ship-tracking').value = '';
+      document.getElementById('ship-error').classList.add('hidden');
+      document.getElementById('ship-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeShipModal() {
+      document.getElementById('ship-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    async function submitShipment() {
+      const trackingNumber = document.getElementById('ship-tracking').value.trim();
+      const carrier = document.getElementById('ship-carrier').value;
+      const errEl = document.getElementById('ship-error');
+      const btn = document.getElementById('ship-btn');
+      errEl.classList.add('hidden');
+
+      if (!trackingNumber) {
+        errEl.textContent = 'Tracking number is required';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const res = await fetch(`${API_BASE}/orders/${order.id}/tracking`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ trackingNumber, carrier }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Failed to add tracking');
+
+        closeShipModal();
+        showActionSuccess('Shipment submitted! Tracking is now active.');
+        // Reload the page data
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Tracking';
+      }
+    }
+
+    async function confirmDelivery() {
+      if (!confirm('Confirm that you received this item? This will release escrow funds to the seller.')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/orders/${order.id}/confirm`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Confirmation failed');
+
+        showActionSuccess('Delivery confirmed! Escrow released to seller.');
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        showActionError(err.message);
+      }
+    }
+
+    function openDisputeModal() {
+      document.getElementById('dispute-reason-input').value = '';
+      document.getElementById('dispute-error').classList.add('hidden');
+      document.getElementById('dispute-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeDisputeModal() {
+      document.getElementById('dispute-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    async function submitDispute() {
+      const reason = document.getElementById('dispute-reason-input').value.trim();
+      const errEl = document.getElementById('dispute-error');
+      const btn = document.getElementById('dispute-btn');
+      errEl.classList.add('hidden');
+
+      if (!reason) {
+        errEl.textContent = 'Please provide a reason for the dispute';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const res = await fetch(`${API_BASE}/orders/${order.id}/dispute`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ reason }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Failed to open dispute');
+
+        closeDisputeModal();
+        showActionSuccess('Dispute opened. Escrow is now frozen.');
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Dispute';
+      }
+    }
+
+    async function cancelOrder() {
+      if (!confirm('Cancel this order? If funded, the escrow will be refunded.')) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/orders/${order.id}/cancel`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Cancellation failed');
+
+        showActionSuccess('Order cancelled.');
+        setTimeout(() => location.reload(), 1000);
+      } catch (err) {
+        showActionError(err.message);
+      }
+    }
+
+    function showActionError(msg) {
+      const el = document.getElementById('action-error');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      document.getElementById('action-success').classList.add('hidden');
+    }
+
+    function showActionSuccess(msg) {
+      const el = document.getElementById('action-success');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      document.getElementById('action-error').classList.add('hidden');
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────
+    function hideAll() {
+      ['loading-state', 'error-state', 'auth-required', 'main-content'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+    }
+
+    function showError(msg) {
+      hideAll();
+      document.getElementById('error-message').textContent = msg;
+      document.getElementById('error-state').classList.remove('hidden');
+    }
+
+    function formatPrice(priceUsdc) {
+      const num = parseFloat(priceUsdc);
+      if (isNaN(num)) return '$—';
+      return '$' + num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatStatus(s) {
+      const map = { created: 'Created', funded: 'Funded', fulfilled: 'Shipped', completed: 'Completed', disputed: 'Disputed', cancelled: 'Cancelled' };
+      return map[s] || s;
+    }
+
+    function formatTrackingStatus(s) {
+      const map = {
+        in_transit: 'In Transit',
+        out_for_delivery: 'Out for Delivery',
+        delivered: 'Delivered',
+        exception: 'Exception',
+        pending: 'Pending',
+        created: 'Label Created',
+        funded: 'Awaiting Shipment',
+        fulfilled: 'In Transit',
+        completed: 'Delivered',
+      };
+      return map[s] || (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : 'Unknown');
+    }
+
+    function getTrackingStatusColor(s) {
+      if (['delivered', 'completed'].includes(s)) return 'text-emerald-400';
+      if (['in_transit', 'fulfilled', 'out_for_delivery'].includes(s)) return 'text-blue-400';
+      if (['exception', 'disputed'].includes(s)) return 'text-red-400';
+      return 'text-gray-400';
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Close modals on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeShipModal();
+        closeDisputeModal();
+      }
+    });
+
+    // ─── Init ───────────────────────────────────────────────────
+    init();
+  </script>
+
+</body>
+</html>
