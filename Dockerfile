@@ -40,6 +40,7 @@ ENV NODE_ENV=production
 # The app reads process.env.PORT (defaults to 3000 if unset)
 # and binds to 0.0.0.0
 
-# Run migrations (allow failure if already applied) then start
-# Parentheses ensure || true only applies to prisma, not the whole chain
-CMD ["sh", "-c", "(npx prisma migrate deploy || true) && echo 'Starting Agora server...' && exec node dist/index.js"]
+# Start script handles migrations + server
+COPY start.sh ./
+RUN chmod +x start.sh
+CMD ["./start.sh"]

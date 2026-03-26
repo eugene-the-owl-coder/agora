@@ -3,7 +3,7 @@ builder = "nixpacks"
 buildCommand = "npm ci --include=dev && npx prisma generate && npx tsc && cp -r src/public dist/public && cp -r src/idl dist/idl"
 
 [deploy]
-startCommand = "npx prisma migrate deploy && node dist/index.js"
+startCommand = "./start.sh"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
