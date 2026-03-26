@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { emitEvent } from './events';
 
 
 /**
@@ -53,6 +54,32 @@ export async function findMatchingListings(buyOrderId: string) {
   return listings;
 }
 
+/** Format USDC minor units as "$X.XX" display string */
+function formatUsdc(amount: bigint | number | string): string {
+  const cents = typeof amount === 'bigint' ? Number(amount) : Number(amount);
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+/**
+ * Find NEW matching listings for a buy order, excluding any listing
+ * that is already the buy order's current matchedListingId.
+ */
+export async function findNewMatches(buyOrderId: string) {
+  const buyOrder = await prisma.buyOrder.findUnique({ where: { id: buyOrderId } });
+  if (!buyOrder || buyOrder.status !== 'active') {
+    return { buyOrder: null, matches: [] };
+  }
+
+  const allMatches = await findMatchingListings(buyOrderId);
+
+  // Exclude the listing already recorded as the match
+  const newMatches = buyOrder.matchedListingId
+    ? allMatches.filter((l) => l.id !== buyOrder.matchedListingId)
+    : allMatches;
+
+  return { buyOrder, matches: newMatches };
+}
+
 /**
  * Run matching for all active buy orders.
  * Called periodically or on new listing creation.
@@ -70,7 +97,12 @@ export async function runMatchingEngine(): Promise<number> {
   for (const buyOrder of activeBuyOrders) {
     const matches = await findMatchingListings(buyOrder.id);
     if (matches.length > 0) {
-      // Update buy order with first match
+      // Determine which matches are NEW (not the already-recorded match)
+      const newMatches = buyOrder.matchedListingId
+        ? matches.filter((l) => l.id !== buyOrder.matchedListingId)
+        : matches;
+
+      // Update buy order with best (cheapest) match
       await prisma.buyOrder.update({
         where: { id: buyOrder.id },
         data: { matchedListingId: matches[0].id },
@@ -82,6 +114,23 @@ export async function runMatchingEngine(): Promise<number> {
         matchedListingId: matches[0].id,
         matchCount: matches.length,
       });
+
+      // Emit event notifications for NEW matches only
+      for (const listing of newMatches) {
+        emitEvent({
+          agentId: buyOrder.agentId,
+          type: 'buyorder.matched',
+          title: 'New listing matches your search',
+          message: `"${listing.title}" is available for ${formatUsdc(listing.priceUsdc)} from ${listing.agent.name}.`,
+          data: {
+            buyOrderId: buyOrder.id,
+            listingId: listing.id,
+            listingTitle: listing.title,
+            priceUsdc: Number(listing.priceUsdc),
+            sellerName: listing.agent.name,
+          },
+        });
+      }
     }
   }
 

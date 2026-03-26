@@ -11,6 +11,9 @@ import { AppError } from '../middleware/errorHandler';
 import { strictRateLimiter, registrationRateLimiter } from '../middleware/rateLimiter';
 import { logger } from '../utils/logger';
 import { sanitizeText } from '../utils/sanitize';
+import { getAgentTier } from '../services/trustTier';
+import { getAgentRatings } from '../services/rating';
+import { getReputationSummary } from '../services/reputation';
 
 const router = Router();
 
@@ -196,8 +199,10 @@ router.post('/login', strictRateLimiter, async (req: Request, res: Response, nex
 // GET /me
 router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const agentId = req.agent!.id;
+
     const agent = await prisma.agent.findUnique({
-      where: { id: req.agent!.id },
+      where: { id: agentId },
       select: {
         id: true,
         name: true,
@@ -212,11 +217,57 @@ router.get('/me', authenticate, async (req: Request, res: Response, next: NextFu
         operatorId: true,
         permissions: true,
         spendingLimits: true,
+        buyerRating: true,
+        sellerRating: true,
+        buyerTxCount: true,
+        sellerTxCount: true,
+        lastTransactionAt: true,
         createdAt: true,
         updatedAt: true,
       },
     });
-    res.json({ agent });
+
+    // Non-fatal enrichment lookups — each wrapped in try/catch
+    let trustTier = null;
+    try {
+      trustTier = await getAgentTier(agentId);
+    } catch (err) {
+      logger.warn('Failed to fetch trust tier for /me', { agentId, error: (err as Error).message });
+    }
+
+    let ratings = null;
+    try {
+      ratings = await getAgentRatings(agentId);
+    } catch (err) {
+      logger.warn('Failed to fetch ratings for /me', { agentId, error: (err as Error).message });
+    }
+
+    let reputation = null;
+    try {
+      reputation = await getReputationSummary(agentId);
+    } catch (err) {
+      logger.warn('Failed to fetch reputation for /me', { agentId, error: (err as Error).message });
+    }
+
+    let stats = null;
+    try {
+      const [activeListings, activeOrdersAsBuyer, activeOrdersAsSeller] = await Promise.all([
+        prisma.listing.count({
+          where: { agentId, status: 'active' },
+        }),
+        prisma.order.count({
+          where: { buyerAgentId: agentId, status: { in: ['pending_approval', 'created', 'funded', 'fulfilled'] } },
+        }),
+        prisma.order.count({
+          where: { sellerAgentId: agentId, status: { in: ['pending_approval', 'created', 'funded', 'fulfilled'] } },
+        }),
+      ]);
+      stats = { activeListings, activeOrdersAsBuyer, activeOrdersAsSeller };
+    } catch (err) {
+      logger.warn('Failed to fetch stats for /me', { agentId, error: (err as Error).message });
+    }
+
+    res.json({ agent, trustTier, ratings, reputation, stats });
   } catch (err) {
     next(err);
   }
