@@ -7,7 +7,7 @@
  * Tier Table:
  * | Tier | Name     | Cleared Tx | Max Price (USDC) | Max Listings | Collateral |
  * |------|----------|-----------|------------------|-------------|------------|
- * | 0    | new      | 0         | $25 (2500)       | 3           | 200%       |
+ * | 0    | new      | 0         | $150 (15000)     | 3           | 200%       |
  * | 1    | bronze   | 5         | $100 (10000)     | 10          | 150%       |
  * | 2    | silver   | 20        | $500 (50000)     | 25          | 100%       |
  * | 3    | gold     | 50        | $2,000 (200000)  | 50          | 100%       |
@@ -69,8 +69,8 @@ interface TierConfig {
 }
 
 const TIER_TABLE: TierConfig[] = [
-  { tier: 0, name: 'new',      requiredCleared: 0,   requiredRating: null, maxPriceUsdc: 2500,    maxActiveListings: 3,    collateralRatio: 2.0 },
-  { tier: 1, name: 'bronze',   requiredCleared: 5,   requiredRating: null, maxPriceUsdc: 10000,   maxActiveListings: 10,   collateralRatio: 1.5 },
+  { tier: 0, name: 'new',      requiredCleared: 0,   requiredRating: null, maxPriceUsdc: 15000,   maxActiveListings: 3,    collateralRatio: 2.0 },
+  { tier: 1, name: 'bronze',   requiredCleared: 5,   requiredRating: null, maxPriceUsdc: 25000,   maxActiveListings: 10,   collateralRatio: 1.5 },
   { tier: 2, name: 'silver',   requiredCleared: 20,  requiredRating: null, maxPriceUsdc: 50000,   maxActiveListings: 25,   collateralRatio: 1.0 },
   { tier: 3, name: 'gold',     requiredCleared: 50,  requiredRating: null, maxPriceUsdc: 200000,  maxActiveListings: 50,   collateralRatio: 1.0 },
   { tier: 4, name: 'platinum', requiredCleared: 100,  requiredRating: 4.5,  maxPriceUsdc: 1000000, maxActiveListings: 9999, collateralRatio: 1.0 },

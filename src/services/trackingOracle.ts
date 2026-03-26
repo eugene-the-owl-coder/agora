@@ -145,6 +145,9 @@ export class TrackingOracle {
       this.processDisputeTimeouts().catch((err) => {
         logger.error('Dispute timeout check failed', { error: (err as Error).message });
       });
+      this.processBuyerTimeoutReleases().catch((err) => {
+        logger.error('Buyer timeout release check failed', { error: (err as Error).message });
+      });
     }, GRACE_CHECK_INTERVAL_MS);
 
     // Also run grace period check immediately
@@ -155,6 +158,11 @@ export class TrackingOracle {
     // Run dispute timeout check immediately too
     this.processDisputeTimeouts().catch((err) => {
       logger.error('Initial dispute timeout check failed', { error: (err as Error).message });
+    });
+
+    // Run buyer timeout check immediately too
+    this.processBuyerTimeoutReleases().catch((err) => {
+      logger.error('Initial buyer timeout release check failed', { error: (err as Error).message });
     });
   }
 
@@ -787,6 +795,53 @@ export class TrackingOracle {
     }
 
     return null;
+  }
+
+  /**
+   * Process buyer non-engagement timeout.
+   * If an order has been delivered (tracking confirmed) for 14+ days
+   * and buyer hasn't confirmed or disputed, auto-release to seller.
+   * This prevents griefing where buyer receives item but never acts.
+   */
+  async processBuyerTimeoutReleases(): Promise<void> {
+    const BUYER_TIMEOUT_DAYS = 14;
+    const timeoutMs = BUYER_TIMEOUT_DAYS * 24 * 60 * 60 * 1000;
+    const cutoffTime = new Date(Date.now() - timeoutMs);
+
+    const timedOutOrders = await prisma.order.findMany({
+      where: {
+        status: { in: ['fulfilled', 'funded'] },
+        deliveredAt: {
+          not: null,
+          lte: cutoffTime,
+        },
+        disputeReason: null,
+        dispute: null,
+      },
+      include: {
+        seller: { select: { walletAddress: true } },
+      },
+    });
+
+    if (timedOutOrders.length === 0) return;
+
+    logger.info(`Processing ${timedOutOrders.length} orders for buyer timeout release (14-day non-engagement)`);
+
+    for (const order of timedOutOrders) {
+      try {
+        logger.info('Buyer timeout - auto-releasing escrow', {
+          orderId: order.id,
+          deliveredAt: order.deliveredAt,
+          daysSinceDelivery: Math.floor((Date.now() - new Date(order.deliveredAt!).getTime()) / (24 * 60 * 60 * 1000)),
+        });
+        await this.releaseOrderEscrow(order);
+      } catch (err) {
+        logger.error('Failed buyer timeout release', {
+          orderId: order.id,
+          error: (err as Error).message,
+        });
+      }
+    }
   }
 }
 
