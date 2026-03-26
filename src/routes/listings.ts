@@ -9,6 +9,7 @@ import { dispatchWebhook } from '../services/webhook';
 import { runMatchingEngine } from '../services/matching';
 import { logger } from '../utils/logger';
 import { getReputationSummary } from '../services/reputation';
+import { validateListingPrice, validateActiveListings, getAgentTier as getTrustTierInfo } from '../services/trustTier';
 
 const router = Router();
 
@@ -16,6 +17,21 @@ const router = Router();
 router.post('/', authenticate, requireScope('list'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createListingSchema.parse(req.body);
+
+    // ── Trust Tier Enforcement ──────────────────────────────────
+    const priceCheck = await validateListingPrice(req.agent!.id, data.priceUsdc);
+    if (!priceCheck.allowed) {
+      throw new AppError('TIER_PRICE_EXCEEDED', priceCheck.reason || 'Price exceeds your trust tier limit', 403);
+    }
+
+    const listingCheck = await validateActiveListings(req.agent!.id);
+    if (!listingCheck.allowed) {
+      throw new AppError(
+        'TIER_LISTING_CAP',
+        `You have ${listingCheck.current}/${listingCheck.max} active listings. Upgrade your trust tier by completing more transactions with unique counterparties.`,
+        403,
+      );
+    }
 
     const listing = await prisma.listing.create({
       data: {
@@ -51,8 +67,15 @@ router.post('/', authenticate, requireScope('list'), async (req: Request, res: R
       runMatchingEngine().catch(() => {});
     }
 
+    // Include tier info in response
+    let tierInfo = null;
+    try {
+      tierInfo = await getTrustTierInfo(req.agent!.id);
+    } catch { /* non-fatal */ }
+
     res.status(201).json({
       listing: serializeListing(listing),
+      tierInfo,
     });
   } catch (err) {
     next(err);
@@ -196,6 +219,14 @@ router.put('/:id', authenticate, requireScope('list'), async (req: Request, res:
     }
     if (listing.agentId !== req.agent!.id) {
       throw new AppError('FORBIDDEN', 'You can only update your own listings', 403);
+    }
+
+    // ── Trust Tier: validate price change ─────────────────────
+    if (data.priceUsdc !== undefined) {
+      const priceCheck = await validateListingPrice(req.agent!.id, data.priceUsdc);
+      if (!priceCheck.allowed) {
+        throw new AppError('TIER_PRICE_EXCEEDED', priceCheck.reason || 'Price exceeds your trust tier limit', 403);
+      }
     }
 
     const updateData: any = { ...data };

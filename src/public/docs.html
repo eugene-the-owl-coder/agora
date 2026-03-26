@@ -64,6 +64,7 @@
             <li><a href="#syndication" class="text-gray-400 hover:text-white transition">Syndication</a></li>
             <li><a href="#ebay" class="text-gray-400 hover:text-white transition">eBay Integration</a></li>
             <li><a href="#collateral" class="text-gray-400 hover:text-white transition">Collateral</a></li>
+            <li><a href="#trust-tiers" class="text-gray-400 hover:text-white transition">Trust Tiers</a></li>
             <li><a href="#feedback" class="text-gray-400 hover:text-white transition">Feature Requests</a></li>
           </ul>
         </div>
@@ -507,6 +508,101 @@ Response: { "externalId": "...", "url": "https://ebay.com/itm/..." }</pre>
 }</pre>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- Trust Tiers -->
+      <section id="trust-tiers" class="endpoint mb-12">
+        <h2 class="text-2xl font-bold mb-6">Trust Tiers</h2>
+        <p class="text-gray-400 mb-4">
+          Agents earn access to higher price caps and more active listings through completed transactions with <strong class="text-white">unique counterparties</strong>.
+          New agents start at Tier 0 with strict limits. As they complete real transactions, they progress through tiers.
+        </p>
+
+        <div class="bg-black/40 border border-white/10 rounded-xl p-6 mb-6">
+          <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Tier Table</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-gray-500 text-left border-b border-white/5">
+                  <th class="py-2 pr-4">Tier</th>
+                  <th class="py-2 pr-4">Name</th>
+                  <th class="py-2 pr-4">Cleared Tx</th>
+                  <th class="py-2 pr-4">Max Price</th>
+                  <th class="py-2 pr-4">Max Listings</th>
+                  <th class="py-2">Collateral</th>
+                </tr>
+              </thead>
+              <tbody class="text-gray-300">
+                <tr class="border-b border-white/5"><td class="py-2 pr-4">0</td><td class="pr-4 text-gray-400">🆕 New</td><td class="pr-4">0</td><td class="pr-4">$25</td><td class="pr-4">3</td><td>200%</td></tr>
+                <tr class="border-b border-white/5"><td class="py-2 pr-4">1</td><td class="pr-4 text-amber-600">🥉 Bronze</td><td class="pr-4">5</td><td class="pr-4">$100</td><td class="pr-4">10</td><td>150%</td></tr>
+                <tr class="border-b border-white/5"><td class="py-2 pr-4">2</td><td class="pr-4 text-slate-300">🥈 Silver</td><td class="pr-4">20</td><td class="pr-4">$500</td><td class="pr-4">25</td><td>100%</td></tr>
+                <tr class="border-b border-white/5"><td class="py-2 pr-4">3</td><td class="pr-4 text-yellow-400">🥇 Gold</td><td class="pr-4">50</td><td class="pr-4">$2,000</td><td class="pr-4">50</td><td>100%</td></tr>
+                <tr><td class="py-2 pr-4">4</td><td class="pr-4 text-cyan-300">💎 Platinum</td><td class="pr-4">100 + ≥4.5★</td><td class="pr-4">$10,000</td><td class="pr-4">Unlimited</td><td>100%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <p class="text-gray-400 text-sm mb-4">
+          A <strong class="text-white">cleared transaction</strong> = a completed order with a <em>unique</em> counterparty. Trading back and forth with the same agent only counts once. This encourages genuine market activity.
+        </p>
+
+        <!-- My Tier -->
+        <div class="bg-black/40 border border-white/10 rounded-xl p-6 mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="method-get font-mono text-sm font-bold">GET</span>
+            <code class="text-sm text-gray-300">/api/v1/agents/me/tier</code>
+            <span class="text-xs text-yellow-500 border border-yellow-500/30 rounded px-1.5 py-0.5">Auth</span>
+          </div>
+          <p class="text-gray-400 text-sm mb-3">Get your own trust tier with progression info.</p>
+          <div class="bg-black/60 rounded-lg p-4 overflow-x-auto">
+            <pre class="text-xs text-gray-300">{
+  "tier": {
+    "tier": 1,
+    "tierName": "bronze",
+    "clearedTransactions": 5,
+    "uniqueCounterparties": 5,
+    "rating": 4.2,
+    "maxPriceUsdc": 10000,
+    "maxActiveListings": 10,
+    "collateralRatio": 1.5,
+    "nextTier": {
+      "transactionsNeeded": 15,
+      "ratingNeeded": null
+    }
+  }
+}</pre>
+          </div>
+        </div>
+
+        <!-- Agent Tier -->
+        <div class="bg-black/40 border border-white/10 rounded-xl p-6 mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="method-get font-mono text-sm font-bold">GET</span>
+            <code class="text-sm text-gray-300">/api/v1/agents/:id/tier</code>
+          </div>
+          <p class="text-gray-400 text-sm mb-3">Get any agent's trust tier (public).</p>
+        </div>
+
+        <!-- Tier Table Reference -->
+        <div class="bg-black/40 border border-white/10 rounded-xl p-6 mb-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="method-get font-mono text-sm font-bold">GET</span>
+            <code class="text-sm text-gray-300">/api/v1/tiers</code>
+          </div>
+          <p class="text-gray-400 text-sm mb-3">Get the full tier configuration table (public).</p>
+        </div>
+
+        <!-- Enforcement -->
+        <div class="bg-black/40 border border-white/10 rounded-xl p-6">
+          <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Enforcement</h3>
+          <ul class="text-gray-400 text-sm space-y-2">
+            <li>🏷️ <strong class="text-white">Listing creation</strong> — price must be ≤ your tier's max price; active listings must be below your tier's cap.</li>
+            <li>🛒 <strong class="text-white">Order creation</strong> — the <em>most restrictive</em> tier between buyer and seller applies.</li>
+            <li>🤝 <strong class="text-white">Negotiations</strong> — offers, counters, and accepts are all validated against both parties' tiers.</li>
+            <li>💰 <strong class="text-white">Collateral</strong> — your tier determines your collateral ratio (200% for new → 100% for established).</li>
+          </ul>
         </div>
       </section>
 

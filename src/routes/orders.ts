@@ -16,6 +16,7 @@ import {
   estimateCollateral,
 } from '../services/collateral';
 import { logger } from '../utils/logger';
+import { validateOrderPrice } from '../services/trustTier';
 
 const router = Router();
 
@@ -115,6 +116,21 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
         pendingApproval: true,
         message: 'Order requires human approval before proceeding',
       });
+    }
+
+    // ── Trust Tier Price Enforcement ─────────────────────────────
+    // Both buyer AND seller tiers are checked — the most restrictive applies.
+    const tierPriceCheck = await validateOrderPrice(
+      req.agent!.id,
+      listing.agentId,
+      Number(listing.priceUsdc),
+    );
+    if (!tierPriceCheck.allowed) {
+      throw new AppError(
+        'TIER_PRICE_EXCEEDED',
+        tierPriceCheck.reason || 'Transaction price exceeds trust tier limit',
+        403,
+      );
     }
 
     // ── Collateral Enforcement ──────────────────────────────────

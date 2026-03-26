@@ -18,6 +18,7 @@
 import { prisma } from '../lib/prisma';
 import { getBalances } from './wallet';
 import { logger } from '../utils/logger';
+import { getAgentTier as getTrustTier } from './trustTier';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -64,42 +65,21 @@ const MIN_COLLATERAL_RATIO = 1.0;
 // ── Tier Determination ─────────────────────────────────────────────────────
 
 /**
- * Determine an agent's collateral tier based on their transaction history.
+ * Determine an agent's collateral tier based on their trust tier.
+ * Delegates to the trust tier service for counterparty-diversity-based progression.
  * Higher tier = lower collateral requirement (but never below 100%).
  */
 export async function getAgentTier(agentId: string): Promise<number> {
-  const agent = await prisma.agent.findUnique({
-    where: { id: agentId },
-    select: {
-      totalSales: true,
-      totalPurchases: true,
-      reputation: true,
-      isVerified: true,
-      createdAt: true,
-    },
-  });
-
-  if (!agent) return 0;
-
-  const totalTransactions = agent.totalSales + agent.totalPurchases;
-  const accountAgeDays = Math.floor(
-    (Date.now() - agent.createdAt.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  // Tier 4: Verified account with substantial history
-  if (agent.isVerified && totalTransactions >= 50) return 4;
-
-  // Tier 3: Good reputation + significant transaction history
-  if (totalTransactions >= 20 && agent.reputation >= 80) return 3;
-
-  // Tier 2: Established — some history and decent reputation
-  if (totalTransactions >= 5 && agent.reputation >= 50) return 2;
-
-  // Tier 1: Some history or old enough account
-  if (totalTransactions >= 1 || accountAgeDays >= 30) return 1;
-
-  // Tier 0: Brand new
-  return 0;
+  try {
+    const tierInfo = await getTrustTier(agentId);
+    return tierInfo.tier;
+  } catch (err) {
+    logger.warn('Failed to compute trust tier, defaulting to tier 0', {
+      agentId,
+      error: (err as Error).message,
+    });
+    return 0;
+  }
 }
 
 // ── Collateral Calculation ─────────────────────────────────────────────────

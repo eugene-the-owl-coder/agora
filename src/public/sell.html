@@ -158,6 +158,23 @@
         </div>
       </div>
 
+      <!-- Trust Tier Info Banner -->
+      <div id="tier-info-banner" class="hidden mb-6 fade-in">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <span id="sell-tier-badge" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase border"></span>
+            <span class="text-sm text-gray-400">
+              Max price: <span class="text-white font-medium" id="sell-tier-max-price">—</span>
+            </span>
+            <span class="text-gray-600">·</span>
+            <span class="text-sm text-gray-400">
+              Listings: <span class="text-white font-medium" id="sell-tier-listings-used">0</span> / <span class="text-white font-medium" id="sell-tier-listings-max">3</span>
+            </span>
+          </div>
+          <a href="/dashboard.html" class="text-xs text-indigo-400 hover:text-indigo-300 transition">View tier details →</a>
+        </div>
+      </div>
+
       <!-- Listing Form -->
       <div id="listing-form-container" class="bg-white/5 border border-white/10 rounded-xl p-8 mb-10">
         <h2 class="text-lg font-semibold mb-6">Listing Details</h2>
@@ -398,6 +415,47 @@
       document.getElementById('main-content').classList.remove('hidden');
       updateAuthIndicator(true);
       loadMyListings();
+      loadSellerTierInfo();
+    }
+
+    // ── Trust Tier Info for Sell Page ───────────────────────
+    async function loadSellerTierInfo() {
+      if (!myAgent) return;
+      try {
+        const res = await fetch(`${API_BASE}/agents/me/tier`, { headers: { 'X-API-Key': getApiKey() } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const t = data.tier;
+        if (!t) return;
+
+        document.getElementById('tier-info-banner').classList.remove('hidden');
+
+        // Badge
+        const tierColors = {
+          new: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+          bronze: 'bg-amber-700/10 text-amber-600 border-amber-700/20',
+          silver: 'bg-slate-300/10 text-slate-300 border-slate-300/20',
+          gold: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20',
+          platinum: 'bg-cyan-300/10 text-cyan-300 border-cyan-300/20',
+        };
+        const tierEmoji = { new: '🆕', bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '💎' };
+        const badge = document.getElementById('sell-tier-badge');
+        const tc = tierColors[t.tierName] || tierColors.new;
+        badge.className = `text-xs px-2 py-0.5 rounded-full font-bold uppercase border ${tc}`;
+        badge.textContent = `${tierEmoji[t.tierName] || ''} T${t.tier}`;
+
+        // Max price
+        document.getElementById('sell-tier-max-price').textContent = '$' + (t.maxPriceUsdc / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
+
+        // Listing count — fetch current active count
+        const listRes = await fetch(`${API_BASE}/listings?sellerId=${myAgent.id}&status=active&limit=1`, { headers: { 'X-API-Key': getApiKey() } });
+        const listData = await listRes.json();
+        const current = listData.pagination?.total ?? 0;
+        document.getElementById('sell-tier-listings-used').textContent = current;
+        document.getElementById('sell-tier-listings-max').textContent = t.maxActiveListings >= 9999 ? '∞' : t.maxActiveListings;
+      } catch (err) {
+        console.warn('Failed to load tier info', err);
+      }
     }
 
     function updateAuthIndicator(authenticated) {

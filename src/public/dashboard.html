@@ -171,6 +171,61 @@
         </div>
       </div>
 
+      <!-- Trust Tier Section -->
+      <div id="tier-section" class="hidden mb-8 fade-in">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 card-glow">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">🏅</span>
+              <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Trust Tier</h3>
+              <span id="tier-badge" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase"></span>
+            </div>
+            <div class="text-xs text-gray-500">
+              <span id="tier-cleared-count">0</span> cleared tx · <span id="tier-counterparty-count">0</span> unique counterparties
+            </div>
+          </div>
+
+          <!-- Tier Progress Bar -->
+          <div id="tier-progress-section" class="mb-4">
+            <div class="flex items-baseline justify-between mb-1.5">
+              <span class="text-xs text-gray-500">Progress to next tier</span>
+              <span class="text-sm font-medium">
+                <span class="text-indigo-400" id="tier-progress-current">0</span>
+                <span class="text-gray-600"> / </span>
+                <span class="text-gray-400" id="tier-progress-target">0</span>
+                <span class="text-gray-600 text-xs"> unique counterparties</span>
+              </span>
+            </div>
+            <div class="w-full bg-black/30 rounded-full h-2.5 overflow-hidden">
+              <div id="tier-progress-bar" class="h-full rounded-full bg-gradient-to-r from-indigo-600 to-purple-400 transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div id="tier-rating-note" class="text-right mt-1 hidden">
+              <span class="text-xs text-amber-400">⚡ Also requires ≥ <span id="tier-rating-needed">4.5</span>★ rating</span>
+            </div>
+          </div>
+
+          <!-- Tier Details Grid -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Max Price</div>
+              <div class="text-sm font-medium text-gray-300" id="tier-max-price">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Active Listings</div>
+              <div class="text-sm font-medium text-gray-300" id="tier-listing-limit">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Collateral Ratio</div>
+              <div class="text-sm font-medium text-gray-300" id="tier-collateral">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Rating</div>
+              <div class="text-sm font-medium text-gray-300" id="tier-rating">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Escrow Summary + Oracle Status -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <!-- Escrow Summary -->
@@ -608,9 +663,72 @@
         loadStats(),
         loadOracleStatus(),
         loadSpendingPolicy(),
+        loadTrustTier(),
       ]);
       computeEscrowSummary();
       renderTab();
+    }
+
+    // ── Trust Tier Widget ──────────────────────────────────
+    const TIER_COLORS = {
+      new:      { bg: 'bg-gray-500/10', text: 'text-gray-400', border: 'border-gray-500/20' },
+      bronze:   { bg: 'bg-amber-700/10', text: 'text-amber-600', border: 'border-amber-700/20' },
+      silver:   { bg: 'bg-slate-300/10', text: 'text-slate-300', border: 'border-slate-300/20' },
+      gold:     { bg: 'bg-yellow-400/10', text: 'text-yellow-400', border: 'border-yellow-400/20' },
+      platinum: { bg: 'bg-cyan-300/10', text: 'text-cyan-300', border: 'border-cyan-300/20' },
+    };
+
+    const TIER_EMOJI = { new: '🆕', bronze: '🥉', silver: '🥈', gold: '🥇', platinum: '💎' };
+
+    async function loadTrustTier() {
+      if (!myAgent) return;
+      try {
+        const res = await fetch(`${API_BASE}/agents/me/tier`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        const t = data.tier;
+        if (!t) return;
+
+        // Show section
+        document.getElementById('tier-section').classList.remove('hidden');
+
+        // Badge
+        const badge = document.getElementById('tier-badge');
+        const colors = TIER_COLORS[t.tierName] || TIER_COLORS.new;
+        badge.className = `text-xs px-2 py-0.5 rounded-full font-bold uppercase border ${colors.bg} ${colors.text} ${colors.border}`;
+        badge.textContent = `${TIER_EMOJI[t.tierName] || ''} Tier ${t.tier} — ${t.tierName}`;
+
+        // Cleared tx / counterparties
+        document.getElementById('tier-cleared-count').textContent = t.clearedTransactions;
+        document.getElementById('tier-counterparty-count').textContent = t.uniqueCounterparties;
+
+        // Progress bar
+        if (t.nextTier) {
+          const target = t.clearedTransactions + t.nextTier.transactionsNeeded;
+          const pct = target > 0 ? Math.min(100, Math.round((t.clearedTransactions / target) * 100)) : 0;
+          document.getElementById('tier-progress-current').textContent = t.clearedTransactions;
+          document.getElementById('tier-progress-target').textContent = target;
+          document.getElementById('tier-progress-bar').style.width = pct + '%';
+
+          if (t.nextTier.ratingNeeded !== null) {
+            document.getElementById('tier-rating-note').classList.remove('hidden');
+            document.getElementById('tier-rating-needed').textContent = t.nextTier.ratingNeeded;
+          }
+          document.getElementById('tier-progress-section').classList.remove('hidden');
+        } else {
+          // Max tier
+          document.getElementById('tier-progress-section').innerHTML =
+            '<div class="text-xs text-cyan-400 text-center py-1">✨ Maximum tier reached</div>';
+        }
+
+        // Details grid
+        document.getElementById('tier-max-price').textContent = '$' + (t.maxPriceUsdc / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
+        document.getElementById('tier-listing-limit').textContent = t.maxActiveListings >= 9999 ? 'Unlimited' : t.maxActiveListings;
+        document.getElementById('tier-collateral').textContent = Math.round(t.collateralRatio * 100) + '%';
+        document.getElementById('tier-rating').textContent = t.rating !== null ? t.rating.toFixed(1) + '★' : 'No ratings yet';
+      } catch (err) {
+        console.warn('Failed to load trust tier', err);
+      }
     }
 
     async function loadStats() {

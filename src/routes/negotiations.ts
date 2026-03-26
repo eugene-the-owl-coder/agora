@@ -14,6 +14,7 @@ import { uuidParamSchema } from '../validators/common';
 import { dispatchWebhook } from '../services/webhook';
 import { validatePurchase } from '../services/spendingPolicy';
 import { logger } from '../utils/logger';
+import { validateOrderPrice, getAgentTier as getTrustTierInfo } from '../services/trustTier';
 
 const router = Router();
 
@@ -146,6 +147,21 @@ async function checkAutoAccept(
     });
 
     if (!negotiation) return false;
+
+    // ── Trust Tier check before auto-accept ─────────────────────
+    const autoAcceptTierCheck = await validateOrderPrice(
+      negotiation.buyerAgentId,
+      negotiation.sellerAgentId,
+      offeredPrice,
+    );
+    if (!autoAcceptTierCheck.allowed) {
+      logger.info('Auto-accept skipped: trust tier price limit exceeded', {
+        negotiationId,
+        listingId,
+        reason: autoAcceptTierCheck.reason,
+      });
+      return false;
+    }
 
     // ── Spending policy check for buyer ──────────────────────────
     // Before auto-accepting, verify the buyer's spending policy allows this purchase
@@ -288,6 +304,20 @@ router.post(
           'SELF_NEGOTIATION',
           'Cannot negotiate on your own listing',
           400,
+        );
+      }
+
+      // ── Trust Tier: check buyer's tier allows the offer price ──
+      const tierCheck = await validateOrderPrice(
+        req.agent!.id,
+        listing.agentId,
+        data.amount,
+      );
+      if (!tierCheck.allowed) {
+        throw new AppError(
+          'TIER_PRICE_EXCEEDED',
+          tierCheck.reason || 'Offer price exceeds trust tier limit',
+          403,
         );
       }
 
@@ -567,6 +597,20 @@ router.post(
         case 'COUNTER': {
           const counterData = counterPayloadSchema.parse(data.payload);
 
+          // ── Trust Tier: validate counter price against both tiers ──
+          const counterTierCheck = await validateOrderPrice(
+            negotiation.buyerAgentId,
+            negotiation.sellerAgentId,
+            counterData.amount,
+          );
+          if (!counterTierCheck.allowed) {
+            throw new AppError(
+              'TIER_PRICE_EXCEEDED',
+              counterTierCheck.reason || 'Counter price exceeds trust tier limit',
+              403,
+            );
+          }
+
           // COUNTER can only be sent by the party who did NOT send the last OFFER/COUNTER
           if (lastMessage && lastMessage.fromAgentId === req.agent!.id) {
             const lastType = lastMessage.type;
@@ -644,6 +688,20 @@ router.post(
               'NO_PRICE',
               'No price has been offered yet',
               400,
+            );
+          }
+
+          // ── Trust Tier: re-validate agreed price against both tiers ──
+          const acceptTierCheck = await validateOrderPrice(
+            negotiation.buyerAgentId,
+            negotiation.sellerAgentId,
+            negotiation.currentPrice,
+          );
+          if (!acceptTierCheck.allowed) {
+            throw new AppError(
+              'TIER_PRICE_EXCEEDED',
+              acceptTierCheck.reason || 'Agreed price exceeds trust tier limit',
+              403,
             );
           }
 
