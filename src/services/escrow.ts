@@ -102,7 +102,7 @@ function getPlatformKeypair(): Keypair {
     return Keypair.fromSecretKey(new Uint8Array(bytes));
   } catch {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const bs58 = require('bs58');
+    const bs58Module = require('bs58'); const bs58 = bs58Module.default || bs58Module;
     return Keypair.fromSecretKey(bs58.decode(keypairStr));
   }
 }

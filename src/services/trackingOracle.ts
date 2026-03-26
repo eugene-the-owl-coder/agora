@@ -102,7 +102,7 @@ export class TrackingOracle {
         this.platformKeypair = Keypair.fromSecretKey(new Uint8Array(bytes));
       } catch {
         // Try base58 decode
-        const bs58 = require('bs58');
+        const bs58Module = require('bs58'); const bs58 = bs58Module.default || bs58Module;
         this.platformKeypair = Keypair.fromSecretKey(bs58.decode(keypairStr));
       }
     } else {
