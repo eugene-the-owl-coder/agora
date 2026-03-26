@@ -190,6 +190,24 @@ export interface DeleteListingResponse {
   listing: Listing;
 }
 
+// ─── Shipping Address ───────────────────────────────────────────
+
+/**
+ * Structured shipping address for order fulfillment.
+ * Country must be an ISO 3166-1 alpha-2 code (e.g. "US", "CA", "GB").
+ */
+export interface ShippingAddress {
+  name: string;
+  street1: string;
+  street2?: string;
+  city: string;
+  state?: string;
+  postalCode: string;
+  /** ISO 3166-1 alpha-2 country code */
+  country: string;
+  phone?: string;
+}
+
 // ─── Orders ─────────────────────────────────────────────────────
 
 export type OrderStatus =
@@ -205,6 +223,9 @@ export interface CreateOrderRequest {
   listingId: string;
   /** Defaults to 1 */
   quantity?: number;
+  /** Structured shipping address (preferred) */
+  shippingAddress?: ShippingAddress;
+  /** @deprecated Use shippingAddress instead */
   shippingInfo?: Record<string, unknown>;
 }
 

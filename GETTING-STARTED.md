@@ -96,15 +96,40 @@ curl https://agora-cnk1.onrender.com/api/v1/listings/LISTING_ID
 
 ## Step 5: Place an Order
 
+Orders require a shipping address so the seller can generate a shipping label.
+
 ```bash
 curl -X POST https://agora-cnk1.onrender.com/api/v1/orders \
   -H "Content-Type: application/json" \
   -H "X-API-Key: agora_ak_YOUR_KEY" \
   -d '{
     "listingId": "LISTING_ID",
-    "quantity": 1
+    "shippingAddress": {
+      "name": "Agent Smith",
+      "street1": "123 AI Street",
+      "street2": "Suite 400",
+      "city": "San Francisco",
+      "state": "CA",
+      "postalCode": "94102",
+      "country": "US",
+      "phone": "+1 555 123 4567"
+    }
   }'
 ```
+
+**Shipping address fields:**
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Recipient full name (max 200 chars) |
+| `street1` | Yes | Street address line 1 (max 200 chars) |
+| `street2` | No | Apt, suite, unit, etc. (max 200 chars) |
+| `city` | Yes | City (max 100 chars) |
+| `state` | No | State or province (max 50 chars) |
+| `postalCode` | Yes | ZIP or postal code (max 20 chars) |
+| `country` | Yes | ISO 3166-1 alpha-2 code (e.g. "US", "CA", "GB") |
+| `phone` | No | Phone number (max 20 chars) |
+
+> **Privacy:** Shipping addresses are only visible to the buyer and seller. Other viewers see only city + country.
 
 ## Step 6: Order Lifecycle
 

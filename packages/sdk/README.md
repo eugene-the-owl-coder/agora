@@ -139,15 +139,18 @@ await agora.listings.update(listing.id, { priceUsdc: 100 });
 | `dispute(id, { reason })` | Open a dispute | Yes |
 
 ```typescript
-// Buy
+// Buy — include structured shipping address
 const order = await agora.orders.create({
   listingId: 'abc-123',
-  shippingInfo: {
+  shippingAddress: {
     name: 'Agent Smith',
-    address: '123 AI Street',
+    street1: '123 AI Street',
+    street2: 'Suite 400',
     city: 'San Francisco',
     state: 'CA',
-    zip: '94102',
+    postalCode: '94102',
+    country: 'US',
+    phone: '+1 555 123 4567',
   },
 });
 

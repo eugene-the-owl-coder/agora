@@ -165,7 +165,11 @@
           </div>
           <div>
             <label class="block text-sm text-gray-400 mb-1">Street Address <span class="text-red-400">*</span></label>
-            <input type="text" id="ship-address" placeholder="123 Main Street, Apt 4B" class="input-field" />
+            <input type="text" id="ship-street1" placeholder="123 Main Street" class="input-field" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Street Address 2 <span class="text-gray-600">(optional)</span></label>
+            <input type="text" id="ship-street2" placeholder="Apt 4B, Suite 200, etc." class="input-field" />
           </div>
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="col-span-2 md:col-span-1">
@@ -173,27 +177,45 @@
               <input type="text" id="ship-city" placeholder="San Francisco" class="input-field" />
             </div>
             <div>
-              <label class="block text-sm text-gray-400 mb-1">State</label>
-              <input type="text" id="ship-state" placeholder="CA" maxlength="10" class="input-field" />
+              <label class="block text-sm text-gray-400 mb-1">State / Province</label>
+              <input type="text" id="ship-state" placeholder="CA" maxlength="50" class="input-field" />
             </div>
             <div>
-              <label class="block text-sm text-gray-400 mb-1">ZIP <span class="text-red-400">*</span></label>
+              <label class="block text-sm text-gray-400 mb-1">Postal Code <span class="text-red-400">*</span></label>
               <input type="text" id="ship-zip" placeholder="94105" class="input-field" />
             </div>
           </div>
-          <div class="max-w-xs">
-            <label class="block text-sm text-gray-400 mb-1">Country <span class="text-red-400">*</span></label>
-            <select id="ship-country" class="input-field appearance-none cursor-pointer">
-              <option value="US">United States</option>
-              <option value="CA">Canada</option>
-              <option value="GB">United Kingdom</option>
-              <option value="AU">Australia</option>
-              <option value="DE">Germany</option>
-              <option value="FR">France</option>
-              <option value="JP">Japan</option>
-              <option value="OTHER">Other</option>
-            </select>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">Country <span class="text-red-400">*</span></label>
+              <select id="ship-country" class="input-field appearance-none cursor-pointer">
+                <option value="US">United States</option>
+                <option value="CA">Canada</option>
+                <option value="GB">United Kingdom</option>
+                <option value="AU">Australia</option>
+                <option value="DE">Germany</option>
+                <option value="FR">France</option>
+                <option value="JP">Japan</option>
+                <option value="NL">Netherlands</option>
+                <option value="SE">Sweden</option>
+                <option value="CH">Switzerland</option>
+                <option value="NZ">New Zealand</option>
+                <option value="MX">Mexico</option>
+                <option value="BR">Brazil</option>
+                <option value="IN">India</option>
+                <option value="SG">Singapore</option>
+                <option value="KR">South Korea</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-gray-400 mb-1">Phone <span class="text-gray-600">(optional)</span></label>
+              <input type="tel" id="ship-phone" placeholder="+1 555 123 4567" maxlength="20" class="input-field" />
+            </div>
           </div>
+          <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none">
+            <input type="checkbox" id="ship-save" checked class="accent-indigo-500 rounded" />
+            Save address for next purchase
+          </label>
         </div>
       </div>
 
@@ -518,8 +540,30 @@
       // Fetch collateral estimate
       fetchCollateralEstimate();
 
+      // Pre-fill saved shipping address from localStorage
+      prefillShippingAddress();
+
       // Set up shipping rate listeners
       setupShippingListeners();
+    }
+
+    function prefillShippingAddress() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('agora_shipping_address'));
+        if (!saved) return;
+        if (saved.name) document.getElementById('ship-name').value = saved.name;
+        if (saved.street1) document.getElementById('ship-street1').value = saved.street1;
+        if (saved.street2) document.getElementById('ship-street2').value = saved.street2;
+        if (saved.city) document.getElementById('ship-city').value = saved.city;
+        if (saved.state) document.getElementById('ship-state').value = saved.state;
+        if (saved.postalCode) document.getElementById('ship-zip').value = saved.postalCode;
+        if (saved.country) {
+          const sel = document.getElementById('ship-country');
+          const opt = sel.querySelector(`option[value="${saved.country}"]`);
+          if (opt) sel.value = saved.country;
+        }
+        if (saved.phone) document.getElementById('ship-phone').value = saved.phone;
+      } catch { /* ignore corrupt data */ }
     }
 
     async function fetchCollateralEstimate() {
@@ -555,11 +599,14 @@
 
     async function placeOrder() {
       const name = document.getElementById('ship-name').value.trim();
-      const address = document.getElementById('ship-address').value.trim();
+      const street1 = document.getElementById('ship-street1').value.trim();
+      const street2 = document.getElementById('ship-street2').value.trim();
       const city = document.getElementById('ship-city').value.trim();
       const state = document.getElementById('ship-state').value.trim();
       const zip = document.getElementById('ship-zip').value.trim();
       const country = document.getElementById('ship-country').value;
+      const phone = document.getElementById('ship-phone').value.trim();
+      const saveAddr = document.getElementById('ship-save').checked;
       const errEl = document.getElementById('order-error');
       const btn = document.getElementById('place-order-btn');
       errEl.classList.add('hidden');
@@ -568,13 +615,25 @@
       const walletAddr = window.AgoraWallet ? AgoraWallet.getWalletAddress() : null;
       if (!walletAddr) return showOrderError('Please connect your Solana wallet first');
 
-      if (!name) return showOrderError('Name is required');
-      if (!address) return showOrderError('Street address is required');
+      if (!name) return showOrderError('Full name is required');
+      if (!street1) return showOrderError('Street address is required');
       if (!city) return showOrderError('City is required');
-      if (!zip) return showOrderError('ZIP code is required');
+      if (!zip) return showOrderError('Postal code is required');
+      if (!country || country.length !== 2) return showOrderError('Country is required');
 
-      // Build shipping info with selected rate
-      const shippingInfo = { name, address, city, state, zip, country };
+      // Build structured shipping address
+      const shippingAddress = { name, street1, city, postalCode: zip, country };
+      if (street2) shippingAddress.street2 = street2;
+      if (state) shippingAddress.state = state;
+      if (phone) shippingAddress.phone = phone;
+
+      // Save to localStorage for next time
+      if (saveAddr) {
+        localStorage.setItem('agora_shipping_address', JSON.stringify(shippingAddress));
+      }
+
+      // Legacy shippingInfo (backward compat) with selected rate
+      const shippingInfo = { name, address: street1, city, state, zip, country };
       if (selectedShipping) {
         shippingInfo.selectedRate = {
           serviceCode: selectedShipping.serviceCode,
@@ -596,6 +655,7 @@
           headers: authHeaders(),
           body: JSON.stringify({
             listingId: currentListing.id,
+            shippingAddress,
             shippingInfo,
             buyerWalletAddress: walletAddr,
           }),

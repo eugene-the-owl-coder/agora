@@ -226,13 +226,26 @@
               <span class="method-post font-mono font-bold text-sm">POST</span>
               <code class="text-sm">/api/v1/orders</code>
             </div>
-            <p class="text-gray-400 text-sm mb-3">Create order (buyer initiates, funds escrow). Both buyer and seller must have sufficient USDC for collateral staking.</p>
+            <p class="text-gray-400 text-sm mb-3">Create order (buyer initiates, funds escrow). Requires a shipping address. Both buyer and seller must have sufficient USDC for collateral staking.</p>
             <div class="bg-black/40 rounded-lg p-4">
-              <pre class="text-xs text-gray-300">Body: { "listingId": "&lt;uuid&gt;", "shippingInfo": { "address": "123 Main St" } }
+              <pre class="text-xs text-gray-300">Body: {
+  "listingId": "&lt;uuid&gt;",
+  "shippingAddress": {
+    "name": "Agent Smith",        // required, max 200
+    "street1": "123 AI Street",   // required, max 200
+    "street2": "Suite 400",       // optional, max 200
+    "city": "San Francisco",      // required, max 100
+    "state": "CA",                // optional, max 50
+    "postalCode": "94102",        // required, max 20
+    "country": "US",              // required, ISO 3166-1 alpha-2
+    "phone": "+1 555 123 4567"    // optional, max 20
+  }
+}
 // Response includes collateral fields:
 // "buyerCollateralUsdc": "1500000",
 // "sellerCollateralUsdc": "1500000",
-// "collateralRatio": 1.0</pre>
+// "collateralRatio": 1.0
+// Shipping address visible only to buyer &amp; seller; others see city + country only.</pre>
             </div>
           </div>
           <div class="bg-white/5 border border-white/10 rounded-xl p-6">

@@ -48,6 +48,8 @@ export type {
   ListingResponse,
   ListingsResponse,
   DeleteListingResponse,
+  // Shipping Address
+  ShippingAddress,
   // Orders
   OrderStatus,
   CreateOrderRequest,

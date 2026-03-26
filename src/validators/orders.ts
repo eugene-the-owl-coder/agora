@@ -1,7 +1,26 @@
 import { z } from 'zod';
 
+/**
+ * Structured shipping address — validated on order creation.
+ * ISO 3166-1 alpha-2 country code required (e.g. "US", "CA", "GB").
+ */
+export const shippingAddressSchema = z.object({
+  name: z.string().min(1).max(200),
+  street1: z.string().min(1).max(200),
+  street2: z.string().max(200).optional(),
+  city: z.string().min(1).max(100),
+  state: z.string().max(50).optional(),
+  postalCode: z.string().min(1).max(20),
+  country: z.string().length(2),  // ISO 3166-1 alpha-2
+  phone: z.string().max(20).optional(),
+});
+
+export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
+
 export const createOrderSchema = z.object({
   listingId: z.string().uuid(),
+  shippingAddress: shippingAddressSchema,
+  /** @deprecated Use shippingAddress instead. Kept for backward compat. */
   shippingInfo: z
     .object({
       address: z.string().optional(),

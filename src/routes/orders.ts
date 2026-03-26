@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema } from '../validators/orders';
+import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema, type ShippingAddress } from '../validators/orders';
 import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
@@ -99,6 +99,11 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       );
     }
 
+    // Build structured shipping info from the new shippingAddress field
+    const shippingData: Prisma.InputJsonValue = data.shippingAddress
+      ? (data.shippingAddress as unknown as Prisma.InputJsonValue)
+      : (data.shippingInfo || Prisma.JsonNull) as Prisma.InputJsonValue;
+
     // If human approval is required, create order in pending_approval state
     if (policyCheck.requiresHumanApproval) {
       const pendingOrder = await prisma.order.create({
@@ -108,7 +113,7 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
           sellerAgentId: listing.agentId,
           amountUsdc: listing.priceUsdc,
           status: 'pending_approval',
-          shippingInfo: (data.shippingInfo || Prisma.JsonNull) as Prisma.InputJsonValue,
+          shippingInfo: shippingData,
         },
         include: {
           listing: { select: { id: true, title: true } },
@@ -133,7 +138,7 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       }).catch(() => {});
 
       return res.status(201).json({
-        order: serializeOrder(pendingOrder),
+        order: serializeOrder(pendingOrder, { viewerAgentId: req.agent!.id }),
         pendingApproval: true,
         message: 'Order requires human approval before proceeding',
       });
@@ -221,7 +226,7 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
         sellerCollateralUsdc: BigInt(collateral.sellerCollateralUsdc),
         collateralRatio: collateral.collateralRatio,
         status: 'created',
-        shippingInfo: (data.shippingInfo || Prisma.JsonNull) as Prisma.InputJsonValue,
+        shippingInfo: shippingData,
       },
       include: {
         listing: { select: { id: true, title: true } },
@@ -254,9 +259,18 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       buyerCollateralUsdc: collateral.buyerCollateralUsdc.toString(),
       sellerCollateralUsdc: collateral.sellerCollateralUsdc.toString(),
       collateralRatio: collateral.collateralRatio,
+      shippingAddress: data.shippingAddress || null,
+      item: {
+        id: listing.id,
+        title: listing.title,
+        description: listing.description,
+        category: listing.category,
+        condition: listing.condition,
+        images: listing.images,
+      },
     }).catch(() => {});
 
-    res.status(201).json({ order: serializeOrder(order) });
+    res.status(201).json({ order: serializeOrder(order, { viewerAgentId: req.agent!.id }) });
   } catch (err) {
     next(err);
   }
@@ -301,7 +315,7 @@ router.get('/', authenticate, async (req: Request, res: Response, next: NextFunc
     ]);
 
     res.json({
-      orders: orders.map(serializeOrder),
+      orders: orders.map((o) => serializeOrder(o, { viewerAgentId: req.agent!.id })),
       pagination: {
         page: params.page,
         limit: params.limit,
@@ -348,7 +362,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
       throw new AppError('FORBIDDEN', 'You can only view your own orders', 403);
     }
 
-    res.json({ order: serializeOrder(order) });
+    res.json({ order: serializeOrder(order, { viewerAgentId: req.agent!.id }) });
   } catch (err) {
     next(err);
   }
@@ -389,7 +403,7 @@ router.post('/:id/fulfill', authenticate, requireScope('sell'), async (req: Requ
     }).catch(() => {});
 
     logger.info('Order fulfilled', { orderId: id });
-    res.json({ order: serializeOrder(updated) });
+    res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
   } catch (err) {
     next(err);
   }
@@ -483,7 +497,7 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
     dispatchWebhook('listing.sold', { listingId: order.listingId, orderId: id }).catch(() => {});
 
     logger.info('Order completed', { orderId: id });
-    res.json({ order: serializeOrder(updated) });
+    res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
   } catch (err) {
     next(err);
   }
@@ -519,7 +533,7 @@ router.post('/:id/dispute', authenticate, async (req: Request, res: Response, ne
     dispatchWebhook('order.disputed', { orderId: id, reason: data.reason }).catch(() => {});
 
     logger.info('Order disputed', { orderId: id });
-    res.json({ order: serializeOrder(updated) });
+    res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
   } catch (err) {
     next(err);
   }
@@ -579,7 +593,7 @@ router.post('/:id/cancel', authenticate, async (req: Request, res: Response, nex
     dispatchWebhook('order.cancelled', { orderId: id }).catch(() => {});
 
     logger.info('Order cancelled', { orderId: id });
-    res.json({ order: serializeOrder(updated) });
+    res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
   } catch (err) {
     next(err);
   }
@@ -614,9 +628,30 @@ router.get('/:id/collateral', authenticate, async (req: Request, res: Response, 
   }
 });
 
-function serializeOrder(order: any) {
+/**
+ * Redact a shipping address to only city + country (for non-participant views).
+ */
+function redactShippingInfo(info: unknown): Record<string, unknown> | null {
+  if (!info || typeof info !== 'object') return null;
+  const addr = info as Record<string, unknown>;
+  return {
+    city: addr.city ?? null,
+    country: addr.country ?? null,
+  };
+}
+
+function serializeOrder(order: any, opts?: { viewerAgentId?: string }) {
+  const isParticipant =
+    opts?.viewerAgentId &&
+    (order.buyerAgentId === opts.viewerAgentId || order.sellerAgentId === opts.viewerAgentId);
+
+  const shippingInfo = isParticipant
+    ? order.shippingInfo ?? null
+    : redactShippingInfo(order.shippingInfo);
+
   return {
     ...order,
+    shippingInfo,
     amountUsdc: order.amountUsdc?.toString(),
     buyerCollateralUsdc: order.buyerCollateralUsdc?.toString() ?? null,
     sellerCollateralUsdc: order.sellerCollateralUsdc?.toString() ?? null,

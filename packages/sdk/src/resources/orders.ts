@@ -7,6 +7,7 @@ import type {
   Order,
   OrderResponse,
   OrdersResponse,
+  ShippingAddress,
 } from '../types';
 
 export class OrdersResource {
