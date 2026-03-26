@@ -464,6 +464,24 @@
       badge.textContent = formatStatus(o.status);
       badge.className = `text-xs px-3 py-1 rounded-full font-semibold status-${o.status}`;
 
+      // Listing images
+      const listingImages = o.listing?.images || [];
+      if (listingImages.length > 0) {
+        const imgSection = document.createElement('div');
+        imgSection.className = 'bg-white/5 border border-white/10 rounded-xl p-6 mb-6';
+        imgSection.innerHTML = `
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">📷 Item Photos</h2>
+          <div class="flex flex-wrap gap-3">
+            ${listingImages.map(img => `
+              <img src="${escapeHtml(img)}" class="w-24 h-24 object-cover rounded-lg border border-white/10 cursor-pointer hover:opacity-80 transition" onclick="window.open('${escapeHtml(img)}','_blank')" loading="lazy" />
+            `).join('')}
+          </div>
+        `;
+        const mainContent = document.querySelector('#main-content .max-w-4xl');
+        const orderHeader = mainContent.querySelector('.flex.flex-col.md\\:flex-row');
+        orderHeader.after(imgSection);
+      }
+
       const role = isBuyer ? '(You\'re the buyer)' : isSeller ? '(You\'re the seller)' : '';
       document.getElementById('order-meta').textContent = `Order ${o.id.substring(0, 8)}... ${role}`;
       document.getElementById('order-amount').textContent = formatPrice(o.amountUsdc);

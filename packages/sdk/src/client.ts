@@ -210,4 +210,98 @@ export class AgoraClient {
 
     return data as T;
   }
+
+  /**
+   * Internal: execute a raw HTTP request (e.g. FormData for file uploads).
+   * Does NOT set Content-Type — lets the runtime handle it (boundary for multipart).
+   */
+  async requestRaw<T>(
+    method: string,
+    path: string,
+    options: {
+      body?: any;
+      auth?: boolean;
+    } = {},
+  ): Promise<T> {
+    const { body, auth = true } = options;
+
+    const url = `${this._baseUrl}${path}`;
+
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+
+    if (auth) {
+      if (this._apiKey) {
+        headers['X-API-Key'] = this._apiKey;
+      } else if (this._token) {
+        headers['Authorization'] = `Bearer ${this._token}`;
+      }
+    }
+
+    let response: Response;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this._timeout);
+
+      response = await fetch(url, {
+        method,
+        headers,
+        body,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new AgoraNetworkError(`Request timed out after ${this._timeout}ms: ${method} ${path}`);
+      }
+      throw new AgoraNetworkError(
+        `Network error: ${method} ${path} — ${(err as Error).message}`,
+        err as Error,
+      );
+    }
+
+    let data: unknown;
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = text || null;
+    }
+
+    if (!response.ok) {
+      const errBody = data as Record<string, unknown> | null;
+      const details = {
+        status: response.status,
+        code: (errBody as any)?.code || (errBody as any)?.error || undefined,
+        message:
+          (errBody as any)?.message ||
+          (errBody as any)?.error ||
+          `HTTP ${response.status} on ${method} ${path}`,
+        body: data,
+      };
+
+      switch (response.status) {
+        case 401:
+          throw new AgoraAuthError(details);
+        case 403:
+          throw new AgoraForbiddenError(details);
+        case 404:
+          throw new AgoraNotFoundError(details);
+        case 429: {
+          const retryAfter = response.headers.get('retry-after');
+          throw new AgoraRateLimitError(
+            details,
+            retryAfter ? parseInt(retryAfter, 10) : undefined,
+          );
+        }
+        default:
+          throw new AgoraError(details);
+      }
+    }
+
+    return data as T;
+  }
 }

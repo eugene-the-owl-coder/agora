@@ -214,6 +214,39 @@
             </div>
             <p class="text-gray-400 text-sm">Delist (soft delete). Owner only.</p>
           </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-post font-mono font-bold text-sm">POST</span>
+              <code class="text-sm">/api/v1/listings/:id/images</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">Upload images to a listing. Owner only. Max 5 images per listing, 5MB each.</p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Content-Type: multipart/form-data
+Field name: "images" (repeatable)
+Supported: image/jpeg, image/png, image/webp
+Max size: 5MB per file
+Max count: 5 per listing
+
+curl -X POST /api/v1/listings/:id/images \
+  -H "X-API-Key: YOUR_KEY" \
+  -F "images=@photo1.jpg" \
+  -F "images=@photo2.png"
+
+Response: { listing: {..., images: ["/uploads/listings/..."]}, uploaded: [...] }</pre>
+            </div>
+          </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-delete font-mono font-bold text-sm">DELETE</span>
+              <code class="text-sm">/api/v1/listings/:id/images/:filename</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">Delete an image from a listing. Owner only.</p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Response: { listing: {...}, deleted: "filename.jpg" }</pre>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -116,7 +116,7 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
           shippingInfo: shippingData,
         },
         include: {
-          listing: { select: { id: true, title: true } },
+          listing: { select: { id: true, title: true, images: true } },
           buyer: { select: { id: true, name: true } },
           seller: { select: { id: true, name: true } },
         },
@@ -229,7 +229,7 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
         shippingInfo: shippingData,
       },
       include: {
-        listing: { select: { id: true, title: true } },
+        listing: { select: { id: true, title: true, images: true } },
         buyer: { select: { id: true, name: true } },
         seller: { select: { id: true, name: true } },
       },

@@ -168,6 +168,15 @@
     </div>
   </div>
 
+  <!-- Image Lightbox -->
+  <div id="lightbox" class="fixed inset-0 z-[200] hidden" onclick="closeLightbox()">
+    <div class="absolute inset-0 bg-black/90 backdrop-blur-sm"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-8">
+      <img id="lightbox-img" src="" class="max-w-full max-h-full object-contain rounded-lg" />
+    </div>
+    <button onclick="closeLightbox()" class="absolute top-4 right-4 text-white/60 hover:text-white text-3xl z-10">&times;</button>
+  </div>
+
   <!-- Footer -->
   <footer class="border-t border-white/5 mt-16">
     <div class="max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -318,8 +327,17 @@
         tierBadgeHtml = `<span class="text-xs px-1.5 py-0.5 rounded-full border ${tc} font-medium">${tierEmoji[sellerTier.tierName] || ''} T${sellerTier.tier}</span>`;
       }
 
+      // Listing thumbnail image
+      const images = l.images || [];
+      const thumbHtml = images.length > 0
+        ? `<div class="-mx-6 -mt-6 mb-4 rounded-t-xl overflow-hidden cursor-pointer" onclick="openModal('${l.id}')">
+             <img src="${escapeHtml(images[0])}" alt="${escapeHtml(l.title)}" class="w-full h-40 object-cover hover:scale-105 transition duration-300" loading="lazy" onerror="this.parentElement.style.display='none'" />
+           </div>`
+        : '';
+
       return `
         <div class="bg-white/5 border border-white/10 rounded-xl p-6 card-glow fade-in flex flex-col">
+          ${thumbHtml}
           <div class="flex items-start justify-between gap-3 mb-3 cursor-pointer" onclick="openModal('${l.id}')">
             <h3 class="text-base font-semibold leading-snug flex-1">${escapeHtml(l.title)}</h3>
             <span class="text-lg font-bold text-emerald-400 whitespace-nowrap">${price}</span>
@@ -392,6 +410,21 @@
           </div>
         </div>
 
+        ${(() => {
+          const imgs = l.images || [];
+          if (imgs.length === 0) return '';
+          return `<div class="mb-10">
+            <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">📷 Photos</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+              ${imgs.map((img, idx) => `
+                <div class="rounded-lg overflow-hidden border border-white/10 cursor-pointer" onclick="openLightbox('${escapeHtml(img)}')">
+                  <img src="${escapeHtml(img)}" alt="Photo ${idx + 1}" class="w-full h-40 object-cover hover:scale-105 transition duration-300" loading="lazy" />
+                </div>
+              `).join('')}
+            </div>
+          </div>`;
+        })()}
+
         <div class="grid md:grid-cols-2 gap-6 mb-10">
           <div class="bg-white/5 border border-white/10 rounded-lg p-4">
             <div class="text-xs text-gray-500 mb-1">Listing ID</div>
@@ -449,8 +482,19 @@
 
     // Close modal on Escape
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Escape') { closeLightbox(); closeModal(); }
     });
+
+    function openLightbox(src) {
+      event.stopPropagation();
+      document.getElementById('lightbox-img').src = src;
+      document.getElementById('lightbox').classList.remove('hidden');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.add('hidden');
+      document.getElementById('lightbox-img').src = '';
+    }
 
     // ─── Helpers ────────────────────────────────────────────────
     function formatPrice(priceUsdc) {

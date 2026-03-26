@@ -190,6 +190,16 @@ export interface DeleteListingResponse {
   listing: Listing;
 }
 
+export interface UploadImagesResponse {
+  listing: Listing;
+  uploaded: string[];
+}
+
+export interface DeleteImageResponse {
+  listing: Listing;
+  deleted: string;
+}
+
 // ─── Shipping Address ───────────────────────────────────────────
 
 /**

@@ -28,6 +28,7 @@ import reputationRoutes from './routes/reputation';
 import ratingsRoutes from './routes/ratings';
 import collateralRoutes from './routes/collateral';
 import trustTierRoutes from './routes/trustTier';
+import imageRoutes from './routes/images';
 import { getTrackingOracle } from './services/trackingOracle';
 import { oracleRouter, oracleOrderRouter } from './routes/oracle';
 
@@ -42,7 +43,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:"],
+      imgSrc: ["'self'", "data:", "/uploads/"],
       connectSrc: ["'self'"],
     },
   },
@@ -51,6 +52,13 @@ app.use(cors());
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(globalRateLimiter);
+
+// Serve uploaded files (images, etc.)
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!require('fs').existsSync(uploadsDir)) {
+  require('fs').mkdirSync(uploadsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Serve static files (landing page, docs, feature request UI)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -100,6 +108,7 @@ app.get('/api/v1/info', async (_req, res) => {
 // API routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/listings', listingRoutes);
+app.use('/api/v1/listings', imageRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/wallet', walletRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);

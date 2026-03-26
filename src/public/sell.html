@@ -285,14 +285,19 @@
 
           <!-- Photo Upload -->
           <div>
-            <label class="block text-sm text-gray-400 mb-2">Photos</label>
-            <div class="border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-indigo-500/30 transition cursor-pointer" onclick="document.getElementById('photo-input').click()">
-              <input type="file" id="photo-input" accept="image/*" multiple class="hidden" onchange="handlePhotos(this)" />
+            <label class="block text-sm text-gray-400 mb-2">Photos <span class="text-xs text-gray-600">(max 5, up to 5MB each)</span></label>
+            <div id="image-dropzone" class="border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-indigo-500/30 transition cursor-pointer"
+                 onclick="document.getElementById('photo-input').click()"
+                 ondragover="event.preventDefault(); this.classList.add('border-indigo-500/50', 'bg-indigo-500/5')"
+                 ondragleave="this.classList.remove('border-indigo-500/50', 'bg-indigo-500/5')"
+                 ondrop="event.preventDefault(); this.classList.remove('border-indigo-500/50', 'bg-indigo-500/5'); handleDroppedFiles(event.dataTransfer.files)">
+              <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp" multiple class="hidden" onchange="handleSelectedFiles(this.files)" />
               <div class="text-3xl mb-2">📷</div>
-              <p class="text-gray-400 text-sm">Click to add photos</p>
-              <p class="text-gray-600 text-xs mt-1">JPEG, PNG up to 2MB each</p>
+              <p class="text-gray-400 text-sm">Drag & drop or click to add photos</p>
+              <p class="text-gray-600 text-xs mt-1">JPEG, PNG, WebP — up to 5MB each</p>
             </div>
             <div id="photo-previews" class="flex flex-wrap gap-3 mt-4"></div>
+            <div id="existing-images" class="flex flex-wrap gap-3 mt-4"></div>
           </div>
 
           <!-- Submit -->
@@ -372,7 +377,7 @@
     const API_BASE = '/api/v1';
     const STORAGE_KEY = 'agora_api_key';
     const STORAGE_AGENT = 'agora_agent';
-    let uploadedPhotos = []; // base64 strings
+    let pendingFiles = []; // File objects for upload after listing creation
     let myAgent = null;
 
     // ─── Auth ───────────────────────────────────────────────────
@@ -571,36 +576,106 @@
     }
 
     // ─── Photo Handling ─────────────────────────────────────────
-    function handlePhotos(input) {
-      const files = Array.from(input.files);
-      files.forEach(file => {
-        if (file.size > 2 * 1024 * 1024) {
-          alert(`${file.name} exceeds 2MB limit`);
-          return;
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+    const MAX_IMAGES = 5;
+    const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+    function handleSelectedFiles(fileList) {
+      addFiles(Array.from(fileList));
+      document.getElementById('photo-input').value = '';
+    }
+
+    function handleDroppedFiles(fileList) {
+      addFiles(Array.from(fileList));
+    }
+
+    function addFiles(files) {
+      for (const file of files) {
+        if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+          alert(`${file.name}: Unsupported type. Use JPEG, PNG, or WebP.`);
+          continue;
         }
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          uploadedPhotos.push(e.target.result);
-          renderPhotoPreviews();
-        };
-        reader.readAsDataURL(file);
-      });
-      input.value = '';
+        if (file.size > MAX_IMAGE_SIZE) {
+          alert(`${file.name} exceeds 5MB limit`);
+          continue;
+        }
+        if (pendingFiles.length >= MAX_IMAGES) {
+          alert(`Maximum ${MAX_IMAGES} images allowed`);
+          break;
+        }
+        pendingFiles.push(file);
+      }
+      renderPhotoPreviews();
     }
 
     function renderPhotoPreviews() {
       const container = document.getElementById('photo-previews');
-      container.innerHTML = uploadedPhotos.map((src, i) => `
-        <div class="relative group">
-          <img src="${src}" class="w-20 h-20 object-cover rounded-lg border border-white/10" />
-          <button onclick="removePhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition">×</button>
-        </div>
-      `).join('');
+      container.innerHTML = pendingFiles.map((file, i) => {
+        const url = URL.createObjectURL(file);
+        return `
+          <div class="relative group">
+            <img src="${url}" class="w-20 h-20 object-cover rounded-lg border border-white/10" />
+            <button onclick="removePhoto(${i})" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition">×</button>
+            <div class="text-xs text-gray-600 text-center mt-1 truncate w-20">${escapeHtml(file.name)}</div>
+          </div>
+        `;
+      }).join('');
     }
 
     function removePhoto(index) {
-      uploadedPhotos.splice(index, 1);
+      pendingFiles.splice(index, 1);
       renderPhotoPreviews();
+    }
+
+    async function uploadImagesToListing(listingId) {
+      if (pendingFiles.length === 0) return;
+      const formData = new FormData();
+      pendingFiles.forEach(f => formData.append('images', f));
+      try {
+        const res = await fetch(`${API_BASE}/listings/${listingId}/images`, {
+          method: 'POST',
+          headers: { 'X-API-Key': getApiKey() },
+          body: formData,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.warn('Image upload failed:', data.error?.message || res.statusText);
+        }
+      } catch (err) {
+        console.warn('Image upload error:', err);
+      }
+    }
+
+    function renderExistingImages(images, listingId) {
+      const container = document.getElementById('existing-images');
+      if (!images || images.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = images.map((url, i) => {
+        const filename = url.split('/').pop();
+        return `
+          <div class="relative group">
+            <img src="${url}" class="w-20 h-20 object-cover rounded-lg border border-white/10" />
+            <button onclick="deleteExistingImage('${listingId}', '${filename}', this)" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition">×</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function deleteExistingImage(listingId, filename, btn) {
+      if (!confirm('Delete this image?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/listings/${listingId}/images/${filename}`, {
+          method: 'DELETE',
+          headers: authHeaders(),
+        });
+        if (!res.ok) throw new Error('Failed to delete');
+        btn.closest('.relative').remove();
+        loadMyListings();
+      } catch (err) {
+        alert('Error deleting image: ' + err.message);
+      }
     }
 
     // ─── Create Listing ─────────────────────────────────────────
@@ -648,7 +723,7 @@
           category,
           condition,
           quantity,
-          images: [], // photos stored client-side for now
+          images: [],
           metadata: {
             shipFromPostalCode: shipFrom.replace(/\s+/g, '').toUpperCase(),
             weightKg,
@@ -665,6 +740,12 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error?.message || data.message || 'Failed to create listing');
+
+        // Upload images if any selected
+        if (pendingFiles.length > 0) {
+          btn.innerHTML = '<span class="animate-pulse">Uploading images...</span>';
+          await uploadImagesToListing(data.listing.id);
+        }
 
         // Show success
         document.getElementById('success-message').innerHTML =
@@ -699,8 +780,9 @@
       document.getElementById('listing-width').value = '';
       document.getElementById('listing-height').value = '';
       document.getElementById('listing-min-buyer-rating').value = '';
-      uploadedPhotos = [];
+      pendingFiles = [];
       renderPhotoPreviews();
+      document.getElementById('existing-images').innerHTML = '';
       document.getElementById('success-banner').classList.add('hidden');
       document.getElementById('listing-form-container').classList.remove('hidden');
       document.getElementById('form-error').classList.add('hidden');
@@ -743,6 +825,12 @@
           return `
             <div class="bg-white/5 border border-white/10 rounded-xl p-5 card-glow fade-in">
               <div class="flex items-start justify-between gap-4">
+                ${(() => {
+                  const imgs = l.images || [];
+                  return imgs.length > 0
+                    ? `<img src="${escapeHtml(imgs[0])}" class="w-16 h-16 object-cover rounded-lg border border-white/10 flex-shrink-0" loading="lazy" onerror="this.style.display='none'" />`
+                    : '';
+                })()}
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 mb-2 flex-wrap">
                     <h3 class="font-semibold truncate">${escapeHtml(l.title)}</h3>
@@ -753,6 +841,7 @@
                     <span class="text-xs px-2 py-0.5 rounded-full ${condClass} font-medium">${condLabel}</span>
                     <span class="text-xs text-gray-500">Qty: ${l.quantity ?? 1}</span>
                     <span class="text-xs text-gray-600">${formatDate(l.createdAt)}</span>
+                    ${(l.images || []).length > 0 ? `<span class="text-xs text-gray-500">📷 ${l.images.length}</span>` : ''}
                   </div>
                 </div>
                 <div class="text-right flex-shrink-0">

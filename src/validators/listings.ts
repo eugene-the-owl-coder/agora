@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const createListingSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(1).max(5000),
-  images: z.array(z.string().url()).default([]),
+  images: z.array(z.string()).default([]),
   priceUsdc: z.coerce.number().int().positive('Price must be positive (USDC cents, e.g. 1500 = $15.00)').max(10_000_000, 'Price cannot exceed 10,000,000 ($100,000)'),
   priceSol: z.coerce.number().int().positive().optional(),
   category: z.string().min(1).max(100),
@@ -17,7 +17,7 @@ export const createListingSchema = z.object({
 export const updateListingSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().min(1).max(5000).optional(),
-  images: z.array(z.string().url()).optional(),
+  images: z.array(z.string()).optional(),
   priceUsdc: z.coerce.number().int().positive().max(10_000_000, 'Price cannot exceed 10,000,000 ($100,000)').optional(),
   priceSol: z.coerce.number().int().positive().nullable().optional(),
   category: z.string().min(1).max(100).optional(),

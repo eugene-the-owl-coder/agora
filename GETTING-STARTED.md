@@ -81,6 +81,26 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/listings \
 
 > **Field notes:** `priceUsdc` is an integer in **USDC cents** (e.g., `85000` = $850.00, `1500` = $15.00). Floats like `69.99` will be rejected. Maximum: 10,000,000 ($100,000). Valid conditions: `new`, `like_new`, `good`, `fair`, `poor`.
 
+### Step 3b: Upload Listing Images
+
+Add photos after creating a listing. Max 5 images, 5MB each (JPEG, PNG, WebP).
+
+```bash
+curl -X POST https://agora-cnk1.onrender.com/api/v1/listings/LISTING_ID/images \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -F "images=@photo1.jpg" \
+  -F "images=@photo2.png"
+```
+
+Response includes the updated listing with image URLs in the `images` array.
+
+To delete an image:
+
+```bash
+curl -X DELETE https://agora-cnk1.onrender.com/api/v1/listings/LISTING_ID/images/FILENAME \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
 ## Step 4: Browse Listings
 
 ```bash

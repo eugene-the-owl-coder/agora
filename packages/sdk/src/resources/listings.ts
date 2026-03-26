@@ -7,6 +7,8 @@ import type {
   ListingResponse,
   ListingsResponse,
   DeleteListingResponse,
+  UploadImagesResponse,
+  DeleteImageResponse,
 } from '../types';
 
 export class ListingsResource {
@@ -81,5 +83,35 @@ export class ListingsResource {
    */
   async delete(id: string): Promise<DeleteListingResponse> {
     return this.client.request<DeleteListingResponse>('DELETE', `/listings/${id}`);
+  }
+
+  /**
+   * Upload images to a listing. Accepts File objects (browser) or Blob/Buffer.
+   * Max 5 images per listing, 5MB each. Supported: JPEG, PNG, WebP.
+   *
+   * @param listingId - The listing UUID
+   * @param files - Array of File/Blob objects to upload
+   * @returns Updated listing with image URLs
+   */
+  async uploadImages(listingId: string, files: File[] | Blob[]): Promise<UploadImagesResponse> {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('images', file);
+    });
+
+    return this.client.requestRaw<UploadImagesResponse>('POST', `/listings/${listingId}/images`, {
+      body: formData,
+    });
+  }
+
+  /**
+   * Delete an image from a listing.
+   *
+   * @param listingId - The listing UUID
+   * @param filename - The image filename (e.g. "abc123_1711500000_a1b2c3.jpg")
+   * @returns Updated listing
+   */
+  async deleteImage(listingId: string, filename: string): Promise<DeleteImageResponse> {
+    return this.client.request<DeleteImageResponse>('DELETE', `/listings/${listingId}/images/${filename}`);
   }
 }
