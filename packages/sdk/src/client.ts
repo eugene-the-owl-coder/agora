@@ -23,6 +23,7 @@ import { BuyOrdersResource } from './resources/buyOrders';
 import { FeedbackResource } from './resources/feedback';
 import { DisputesResource } from './resources/disputes';
 import { NegotiationsResource } from './resources/negotiations';
+import { SpendingPolicyResource } from './resources/spendingPolicy';
 import type { AgoraClientConfig } from './types';
 
 const DEFAULT_BASE_URL = 'https://agora-cnk1.onrender.com/api/v1';
@@ -56,6 +57,8 @@ export class AgoraClient {
   readonly disputes: DisputesResource;
   /** Price negotiations on listings */
   readonly negotiations: NegotiationsResource;
+  /** Spending policy (purse) configuration and summary */
+  readonly spendingPolicy: SpendingPolicyResource;
 
   constructor(config: AgoraClientConfig = {}) {
     this._baseUrl = (config.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
@@ -74,6 +77,7 @@ export class AgoraClient {
     this.feedback = new FeedbackResource(this);
     this.disputes = new DisputesResource(this);
     this.negotiations = new NegotiationsResource(this);
+    this.spendingPolicy = new SpendingPolicyResource(this);
   }
 
   /**

@@ -742,6 +742,58 @@ export interface NegotiationMessageResponse {
   autoAccepted?: boolean;
 }
 
+// ─── Spending Policy ────────────────────────────────────────────
+
+export interface SpendingPolicy {
+  id: string;
+  agentId: string;
+  /** Monthly spending cap in USDC minor units (null = unlimited) */
+  monthlyLimitUsdc: number | null;
+  /** Max per single transaction in USDC minor units */
+  perTransactionMax: number | null;
+  /** Auto-approve purchases below this amount (USDC minor units) */
+  autoApproveBelow: number | null;
+  /** Must get human approval above this amount (USDC minor units) */
+  requireHumanAbove: number | null;
+  /** Empty = all categories allowed */
+  allowedCategories: string[];
+  /** Agent IDs to never buy from */
+  blockedSellers: string[];
+  /** Min time between purchases (minutes) */
+  cooldownMinutes: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SpendingPolicyUpdate {
+  monthlyLimitUsdc?: number | null;
+  perTransactionMax?: number | null;
+  autoApproveBelow?: number | null;
+  requireHumanAbove?: number | null;
+  allowedCategories?: string[];
+  blockedSellers?: string[];
+  cooldownMinutes?: number | null;
+  isActive?: boolean;
+}
+
+export interface SpendingPolicyResponse {
+  policy: SpendingPolicy | null;
+}
+
+export interface SpendingSummary {
+  totalSpentThisMonth: number;
+  monthlyLimit: number | null;
+  remainingBudget: number | null;
+  transactionCount: number;
+  lastPurchaseDate: string | null;
+  nextAllowedPurchase: string | null;
+}
+
+export interface SpendingSummaryResponse {
+  summary: SpendingSummary;
+}
+
 // ─── Client Config ──────────────────────────────────────────────
 
 export interface AgoraClientConfig {

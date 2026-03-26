@@ -190,6 +190,94 @@
         </div>
       </div>
 
+      <!-- Spending Policy (Purse) -->
+      <div id="purse-section" class="hidden mb-8 fade-in">
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 card-glow">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">👛</span>
+              <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Spending Policy</h3>
+              <span id="purse-active-badge" class="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hidden">Active</span>
+              <span id="purse-inactive-badge" class="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-500/10 text-gray-400 border border-gray-500/20 hidden">Inactive</span>
+            </div>
+            <button onclick="openSpendingPolicyModal()" class="btn-secondary text-xs flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+              Edit
+            </button>
+          </div>
+
+          <!-- Budget Progress Bar -->
+          <div id="purse-budget-section" class="mb-4 hidden">
+            <div class="flex items-baseline justify-between mb-1.5">
+              <span class="text-xs text-gray-500">Monthly Budget</span>
+              <span class="text-sm font-medium">
+                <span class="text-indigo-400" id="purse-budget-used">$0</span>
+                <span class="text-gray-600"> / </span>
+                <span class="text-gray-400" id="purse-budget-total">$0</span>
+              </span>
+            </div>
+            <div class="w-full bg-black/30 rounded-full h-2 overflow-hidden">
+              <div id="purse-budget-bar" class="h-full rounded-full bg-gradient-to-r from-indigo-600 to-indigo-400 transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="text-right mt-1">
+              <span class="text-xs text-gray-600" id="purse-budget-remaining">$0 remaining</span>
+            </div>
+          </div>
+
+          <!-- Policy Details Grid -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="purse-details-grid">
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Per-Transaction Limit</div>
+              <div class="text-sm font-medium text-gray-300" id="purse-per-tx">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Auto-Approve Below</div>
+              <div class="text-sm font-medium text-gray-300" id="purse-auto-approve">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Human Approval Above</div>
+              <div class="text-sm font-medium text-gray-300" id="purse-human-above">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Cooldown</div>
+              <div class="text-sm font-medium text-gray-300" id="purse-cooldown">—</div>
+            </div>
+          </div>
+
+          <!-- Categories -->
+          <div id="purse-categories-section" class="mt-4 hidden">
+            <div class="text-xs text-gray-500 mb-1.5">Allowed Categories</div>
+            <div id="purse-categories" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <!-- Spending Summary Row -->
+          <div class="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-white/5">
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">This Month</div>
+              <div class="text-sm font-medium text-indigo-400" id="purse-month-txns">0 transactions</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Last Purchase</div>
+              <div class="text-sm font-medium text-gray-300" id="purse-last-purchase">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500 mb-0.5">Next Allowed</div>
+              <div class="text-sm font-medium text-gray-300" id="purse-next-allowed">Anytime</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Policy Placeholder -->
+      <div id="purse-empty" class="hidden mb-8 fade-in">
+        <div class="bg-white/5 border border-white/10 border-dashed rounded-xl p-8 text-center">
+          <div class="text-3xl mb-3">👛</div>
+          <h3 class="text-lg font-semibold text-gray-300 mb-2">No Spending Policy</h3>
+          <p class="text-gray-500 text-sm mb-4">Set up a spending policy to control budgets, approval thresholds, and purchase limits.</p>
+          <button onclick="openSpendingPolicyModal()" class="btn-primary text-sm">Configure Spending Policy</button>
+        </div>
+      </div>
+
       <!-- Tabs -->
       <div class="flex border-b border-white/10 mb-8 gap-1">
         <button onclick="switchTab('purchases')" id="tab-purchases" class="px-5 py-3 text-sm font-medium border-b-2 transition tab-active">
@@ -265,6 +353,79 @@
         <div class="flex gap-3">
           <button onclick="updateApiKey()" class="btn-primary flex-1">Update Key</button>
           <button onclick="logoutKey()" class="btn-danger">Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spending Policy Modal -->
+  <div id="spending-policy-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="modal-overlay absolute inset-0" onclick="closeSpendingPolicyModal()"></div>
+    <div class="absolute inset-x-4 top-1/2 -translate-y-1/2 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-lg bg-[#1a1a2e] border border-white/10 rounded-2xl p-8 z-10 max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold">Spending Policy Settings</h3>
+        <button onclick="closeSpendingPolicyModal()" class="text-gray-500 hover:text-white text-xl">&times;</button>
+      </div>
+      <div class="space-y-5">
+        <!-- Active Toggle -->
+        <div class="flex items-center justify-between bg-black/20 rounded-lg p-4">
+          <div>
+            <div class="text-sm font-medium text-gray-300">Policy Active</div>
+            <div class="text-xs text-gray-500 mt-0.5">When inactive, no spending limits apply</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="sp-is-active" class="sr-only peer" checked>
+            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+          </label>
+        </div>
+
+        <!-- Monthly Budget -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Monthly Budget (USD)</label>
+          <input type="number" id="sp-monthly-limit" placeholder="e.g. 500 (leave blank for unlimited)" class="input-field" min="0" step="1" />
+          <p class="text-xs text-gray-600 mt-1">Maximum total spending per calendar month</p>
+        </div>
+
+        <!-- Per-Transaction Max -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Per-Transaction Limit (USD)</label>
+          <input type="number" id="sp-per-tx-max" placeholder="e.g. 100" class="input-field" min="0" step="1" />
+          <p class="text-xs text-gray-600 mt-1">Max amount for a single purchase</p>
+        </div>
+
+        <!-- Auto-Approve Threshold -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Auto-Approve Below (USD)</label>
+          <input type="number" id="sp-auto-approve" placeholder="e.g. 25" class="input-field" min="0" step="1" />
+          <p class="text-xs text-gray-600 mt-1">Purchases below this amount are auto-approved</p>
+        </div>
+
+        <!-- Human Approval Threshold -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Require Human Approval Above (USD)</label>
+          <input type="number" id="sp-human-above" placeholder="e.g. 50" class="input-field" min="0" step="1" />
+          <p class="text-xs text-gray-600 mt-1">Purchases above this amount require human approval</p>
+        </div>
+
+        <!-- Allowed Categories -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Allowed Categories</label>
+          <input type="text" id="sp-categories" placeholder="e.g. electronics, books, tools (comma-separated)" class="input-field" />
+          <p class="text-xs text-gray-600 mt-1">Leave blank to allow all categories</p>
+        </div>
+
+        <!-- Cooldown -->
+        <div>
+          <label class="block text-sm text-gray-400 mb-2">Cooldown (minutes)</label>
+          <input type="number" id="sp-cooldown" placeholder="e.g. 30" class="input-field" min="0" step="1" />
+          <p class="text-xs text-gray-600 mt-1">Minimum time between purchases</p>
+        </div>
+
+        <!-- Save -->
+        <div class="pt-2">
+          <button onclick="saveSpendingPolicy()" id="sp-save-btn" class="btn-primary w-full">Save Spending Policy</button>
+          <p id="sp-error" class="text-red-400 text-xs mt-2 hidden"></p>
+          <p id="sp-success" class="text-emerald-400 text-xs mt-2 hidden"></p>
         </div>
       </div>
     </div>
@@ -430,6 +591,7 @@
         loadMyListings(),
         loadStats(),
         loadOracleStatus(),
+        loadSpendingPolicy(),
       ]);
       computeEscrowSummary();
       renderTab();
@@ -920,6 +1082,257 @@
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    // ─── Spending Policy ────────────────────────────────────────
+    let currentPolicy = null;
+    let currentSummary = null;
+
+    function formatUsdc(minorUnits) {
+      if (minorUnits === null || minorUnits === undefined) return null;
+      const dollars = minorUnits / 100;
+      return '$' + dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    async function loadSpendingPolicy() {
+      try {
+        const [policyRes, summaryRes] = await Promise.all([
+          fetch(`${API_BASE}/agents/me/spending-policy`, { headers: authHeaders() }),
+          fetch(`${API_BASE}/agents/me/spending-summary`, { headers: authHeaders() }),
+        ]);
+
+        const policyData = await policyRes.json();
+        const summaryData = await summaryRes.json();
+
+        currentPolicy = policyData.policy;
+        currentSummary = summaryData.summary;
+
+        renderSpendingPolicy();
+      } catch (err) {
+        console.error('Failed to load spending policy:', err);
+        // Show empty state on error
+        document.getElementById('purse-section').classList.add('hidden');
+        document.getElementById('purse-empty').classList.remove('hidden');
+      }
+    }
+
+    function renderSpendingPolicy() {
+      const section = document.getElementById('purse-section');
+      const empty = document.getElementById('purse-empty');
+
+      if (!currentPolicy) {
+        section.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      section.classList.remove('hidden');
+      empty.classList.add('hidden');
+
+      // Active/Inactive badge
+      const activeBadge = document.getElementById('purse-active-badge');
+      const inactiveBadge = document.getElementById('purse-inactive-badge');
+      if (currentPolicy.isActive) {
+        activeBadge.classList.remove('hidden');
+        inactiveBadge.classList.add('hidden');
+      } else {
+        activeBadge.classList.add('hidden');
+        inactiveBadge.classList.remove('hidden');
+      }
+
+      // Budget progress bar
+      const budgetSection = document.getElementById('purse-budget-section');
+      if (currentPolicy.monthlyLimitUsdc !== null && currentSummary) {
+        budgetSection.classList.remove('hidden');
+        const totalSpent = currentSummary.totalSpentThisMonth || 0;
+        const limit = currentPolicy.monthlyLimitUsdc;
+        const pct = limit > 0 ? Math.min((totalSpent / limit) * 100, 100) : 0;
+        const remaining = Math.max(limit - totalSpent, 0);
+
+        document.getElementById('purse-budget-used').textContent = formatUsdc(totalSpent);
+        document.getElementById('purse-budget-total').textContent = formatUsdc(limit);
+        document.getElementById('purse-budget-remaining').textContent = formatUsdc(remaining) + ' remaining';
+
+        const bar = document.getElementById('purse-budget-bar');
+        bar.style.width = pct + '%';
+        // Color shifts: green < 60%, yellow 60-85%, red > 85%
+        if (pct > 85) {
+          bar.className = 'h-full rounded-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-500';
+        } else if (pct > 60) {
+          bar.className = 'h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-500';
+        } else {
+          bar.className = 'h-full rounded-full bg-gradient-to-r from-indigo-600 to-indigo-400 transition-all duration-500';
+        }
+      } else {
+        budgetSection.classList.add('hidden');
+      }
+
+      // Policy details
+      document.getElementById('purse-per-tx').textContent =
+        currentPolicy.perTransactionMax !== null ? formatUsdc(currentPolicy.perTransactionMax) : 'No limit';
+      document.getElementById('purse-auto-approve').textContent =
+        currentPolicy.autoApproveBelow !== null ? formatUsdc(currentPolicy.autoApproveBelow) : 'Manual';
+      document.getElementById('purse-human-above').textContent =
+        currentPolicy.requireHumanAbove !== null ? formatUsdc(currentPolicy.requireHumanAbove) : 'Not set';
+      document.getElementById('purse-cooldown').textContent =
+        currentPolicy.cooldownMinutes !== null ? currentPolicy.cooldownMinutes + ' min' : 'None';
+
+      // Categories
+      const catSection = document.getElementById('purse-categories-section');
+      const catContainer = document.getElementById('purse-categories');
+      if (currentPolicy.allowedCategories && currentPolicy.allowedCategories.length > 0) {
+        catSection.classList.remove('hidden');
+        catContainer.innerHTML = currentPolicy.allowedCategories.map(c =>
+          `<span class="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">${escapeHtml(c)}</span>`
+        ).join('');
+      } else {
+        catSection.classList.add('hidden');
+      }
+
+      // Summary row
+      if (currentSummary) {
+        document.getElementById('purse-month-txns').textContent =
+          currentSummary.transactionCount + ' transaction' + (currentSummary.transactionCount !== 1 ? 's' : '');
+        document.getElementById('purse-last-purchase').textContent =
+          currentSummary.lastPurchaseDate ? formatDate(currentSummary.lastPurchaseDate) : '—';
+        document.getElementById('purse-next-allowed').textContent =
+          currentSummary.nextAllowedPurchase ? timeSince(new Date(currentSummary.nextAllowedPurchase)) : 'Anytime';
+      }
+    }
+
+    function openSpendingPolicyModal() {
+      const modal = document.getElementById('spending-policy-modal');
+      document.getElementById('sp-error').classList.add('hidden');
+      document.getElementById('sp-success').classList.add('hidden');
+
+      // Populate fields from current policy
+      if (currentPolicy) {
+        document.getElementById('sp-is-active').checked = currentPolicy.isActive;
+        document.getElementById('sp-monthly-limit').value =
+          currentPolicy.monthlyLimitUsdc !== null ? (currentPolicy.monthlyLimitUsdc / 100) : '';
+        document.getElementById('sp-per-tx-max').value =
+          currentPolicy.perTransactionMax !== null ? (currentPolicy.perTransactionMax / 100) : '';
+        document.getElementById('sp-auto-approve').value =
+          currentPolicy.autoApproveBelow !== null ? (currentPolicy.autoApproveBelow / 100) : '';
+        document.getElementById('sp-human-above').value =
+          currentPolicy.requireHumanAbove !== null ? (currentPolicy.requireHumanAbove / 100) : '';
+        document.getElementById('sp-categories').value =
+          (currentPolicy.allowedCategories || []).join(', ');
+        document.getElementById('sp-cooldown').value =
+          currentPolicy.cooldownMinutes !== null ? currentPolicy.cooldownMinutes : '';
+      } else {
+        document.getElementById('sp-is-active').checked = true;
+        document.getElementById('sp-monthly-limit').value = '';
+        document.getElementById('sp-per-tx-max').value = '';
+        document.getElementById('sp-auto-approve').value = '';
+        document.getElementById('sp-human-above').value = '';
+        document.getElementById('sp-categories').value = '';
+        document.getElementById('sp-cooldown').value = '';
+      }
+
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSpendingPolicyModal() {
+      document.getElementById('spending-policy-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    async function saveSpendingPolicy() {
+      const btn = document.getElementById('sp-save-btn');
+      const errEl = document.getElementById('sp-error');
+      const successEl = document.getElementById('sp-success');
+      errEl.classList.add('hidden');
+      successEl.classList.add('hidden');
+
+      // Parse form values — convert dollars to USDC minor units (cents)
+      function parseOptionalUsdc(id) {
+        const val = document.getElementById(id).value.trim();
+        if (val === '') return null;
+        const num = parseFloat(val);
+        if (isNaN(num) || num < 0) return undefined; // invalid
+        return Math.round(num * 100);
+      }
+
+      function parseOptionalInt(id) {
+        const val = document.getElementById(id).value.trim();
+        if (val === '') return null;
+        const num = parseInt(val, 10);
+        if (isNaN(num) || num < 0) return undefined;
+        return num;
+      }
+
+      const monthlyLimitUsdc = parseOptionalUsdc('sp-monthly-limit');
+      const perTransactionMax = parseOptionalUsdc('sp-per-tx-max');
+      const autoApproveBelow = parseOptionalUsdc('sp-auto-approve');
+      const requireHumanAbove = parseOptionalUsdc('sp-human-above');
+      const cooldownMinutes = parseOptionalInt('sp-cooldown');
+
+      // Validate
+      if ([monthlyLimitUsdc, perTransactionMax, autoApproveBelow, requireHumanAbove, cooldownMinutes].some(v => v === undefined)) {
+        errEl.textContent = 'Invalid number value. Please enter positive numbers or leave blank.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      if (autoApproveBelow !== null && perTransactionMax !== null && autoApproveBelow > perTransactionMax) {
+        errEl.textContent = 'Auto-approve threshold must not exceed per-transaction limit.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      const categoriesRaw = document.getElementById('sp-categories').value.trim();
+      const allowedCategories = categoriesRaw
+        ? categoriesRaw.split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const isActive = document.getElementById('sp-is-active').checked;
+
+      const body = {
+        monthlyLimitUsdc,
+        perTransactionMax,
+        autoApproveBelow,
+        requireHumanAbove,
+        allowedCategories,
+        cooldownMinutes,
+        isActive,
+      };
+
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const res = await fetch(`${API_BASE}/agents/me/spending-policy`, {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || data.message || 'Save failed');
+
+        currentPolicy = data.policy;
+        successEl.textContent = 'Spending policy saved!';
+        successEl.classList.remove('hidden');
+
+        // Refresh summary
+        try {
+          const summRes = await fetch(`${API_BASE}/agents/me/spending-summary`, { headers: authHeaders() });
+          const summData = await summRes.json();
+          currentSummary = summData.summary;
+        } catch {}
+
+        renderSpendingPolicy();
+
+        // Auto-close after a brief delay
+        setTimeout(() => closeSpendingPolicyModal(), 800);
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save Spending Policy';
+      }
     }
 
     // ─── Init ───────────────────────────────────────────────────

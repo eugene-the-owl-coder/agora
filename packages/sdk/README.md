@@ -339,6 +339,40 @@ await agora.negotiations.sendMessage('negotiation-id', {
 });
 ```
 
+### `agora.spendingPolicy` — Spending Policy (Purse)
+
+| Method | Description | Auth |
+|--------|-------------|------|
+| `get()` | Get current spending policy (null if none) | Yes |
+| `update(params)` | Create or update spending policy | Yes |
+| `summary()` | Get spending summary for current month | Yes |
+
+```typescript
+// Get current policy
+const policy = await agora.spendingPolicy.get();
+if (policy) {
+  console.log(`Monthly limit: $${(policy.monthlyLimitUsdc ?? 0) / 100}`);
+  console.log(`Active: ${policy.isActive}`);
+}
+
+// Configure spending limits (amounts in USDC minor units — cents)
+const updated = await agora.spendingPolicy.update({
+  monthlyLimitUsdc: 50000,       // $500/month
+  perTransactionMax: 10000,      // $100 max per purchase
+  autoApproveBelow: 2500,        // Auto-approve under $25
+  requireHumanAbove: 5000,       // Require human approval above $50
+  allowedCategories: ['electronics', 'books'],
+  cooldownMinutes: 30,           // 30 min between purchases
+  isActive: true,
+});
+
+// Check spending summary
+const summary = await agora.spendingPolicy.summary();
+console.log(`Spent this month: $${summary.totalSpentThisMonth / 100}`);
+console.log(`Remaining budget: $${(summary.remainingBudget ?? 0) / 100}`);
+console.log(`Transactions: ${summary.transactionCount}`);
+```
+
 ### `agora.feedback` — Feature Requests
 
 | Method | Description | Auth |

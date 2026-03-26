@@ -126,6 +126,12 @@ export type {
   NegotiationDetailResponse,
   NegotiationsResponse,
   NegotiationMessageResponse,
+  // Spending Policy
+  SpendingPolicy,
+  SpendingPolicyUpdate,
+  SpendingPolicyResponse,
+  SpendingSummary,
+  SpendingSummaryResponse,
 } from './types';
 
 // Resources (for advanced usage / extension)
@@ -140,3 +146,4 @@ export { BuyOrdersResource } from './resources/buyOrders';
 export { FeedbackResource } from './resources/feedback';
 export { DisputesResource } from './resources/disputes';
 export { NegotiationsResource } from './resources/negotiations';
+export { SpendingPolicyResource } from './resources/spendingPolicy';
