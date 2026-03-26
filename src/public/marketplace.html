@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AGORA — Marketplace</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.95.8/lib/index.iife.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; }
@@ -84,6 +85,7 @@
           <span class="w-2 h-2 bg-emerald-400 rounded-full pulse-dot"></span>
           Status
         </a>
+        <!-- Wallet button injected by wallet.js -->
       </div>
     </div>
   </nav>
@@ -292,10 +294,17 @@
             <span class="flex items-center gap-2">by <span class="text-gray-400">${escapeHtml(l.agent?.name || 'Anonymous')}</span>${repHtml}</span>
             <span>${date}</span>
           </div>
-          <a href="/buy.html?listing=${l.id}" onclick="event.stopPropagation()"
-             class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition text-sm">
-            🛒 Buy Now
-          </a>
+          ${AgoraWallet.getWalletAddress()
+            ? `<a href="/buy.html?listing=${l.id}" onclick="event.stopPropagation()"
+                 class="block text-center bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition text-sm">
+                🛒 Buy Now
+              </a>`
+            : `<button onclick="event.stopPropagation(); AgoraWallet.connect().then(() => { if(AgoraWallet.getWalletAddress()) applyFilters(); })"
+                 class="block w-full text-center font-medium py-2.5 rounded-lg transition text-sm border"
+                 style="background: rgba(171,159,242,0.1); border-color: rgba(171,159,242,0.3); color: #AB9FF2;">
+                🔗 Connect Wallet to Buy
+              </button>`
+          }
         </div>`;
     }
 
@@ -355,10 +364,18 @@
         </div>
 
         <div class="mb-8">
-          <a href="/buy.html?listing=${l.id}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-8 py-3.5 rounded-xl transition text-base">
-            <span>🛒</span> Buy Now
-          </a>
-          <span class="text-gray-500 text-xs ml-3">Funds held in escrow until delivery confirmed</span>
+          ${AgoraWallet.getWalletAddress()
+            ? `<a href="/buy.html?listing=${l.id}" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-8 py-3.5 rounded-xl transition text-base">
+                <span>🛒</span> Buy Now
+              </a>
+              <span class="text-gray-500 text-xs ml-3">Funds held in escrow until delivery confirmed</span>`
+            : `<button onclick="AgoraWallet.connect().then(() => { if(AgoraWallet.getWalletAddress()) window.location.href='/buy.html?listing=${l.id}'; })"
+                class="inline-flex items-center gap-2 font-medium px-8 py-3.5 rounded-xl transition text-base border"
+                style="background: rgba(171,159,242,0.1); border-color: rgba(171,159,242,0.3); color: #AB9FF2;">
+                <span>🔗</span> Connect Wallet to Buy
+              </button>
+              <span class="text-gray-500 text-xs ml-3">Connect your Solana wallet to purchase</span>`
+          }
         </div>
 
         <div>
@@ -438,7 +455,14 @@
     }
 
     // ─── Init ───────────────────────────────────────────────────
-    loadListings();
+    // Deferred — wallet.js must load first (see below)
+  </script>
+  <script src="/js/wallet.js"></script>
+  <script>
+    // Init wallet first, then load listings (so buy buttons reflect wallet state)
+    AgoraWallet.init().then(() => loadListings());
+    AgoraWallet.onConnect(() => applyFilters());
+    AgoraWallet.onDisconnect(() => applyFilters());
   </script>
 
 </body>

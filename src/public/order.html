@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AGORA — Order Details</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.95.8/lib/index.iife.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; }
@@ -85,6 +86,7 @@
         <a href="/sell.html" class="text-gray-400 hover:text-white transition">Sell</a>
         <a href="/dashboard.html" class="text-gray-400 hover:text-white transition">Dashboard</a>
         <a href="/docs.html" class="text-gray-400 hover:text-white transition">Docs</a>
+        <!-- Wallet button injected by wallet.js -->
       </div>
     </div>
   </nav>
@@ -622,6 +624,9 @@
       const o = order;
       let actions = [];
 
+      // Check if wallet is connected for escrow actions
+      const walletAddr = window.AgoraWallet ? AgoraWallet.getWalletAddress() : null;
+
       // Seller: Mark Shipped (if funded/created, no tracking yet)
       if (isSeller && (o.status === 'created' || o.status === 'funded') && !o.trackingNumber) {
         actions.push(`<button onclick="openShipModal()" class="btn-primary flex items-center gap-2">📦 Mark as Shipped</button>`);
@@ -629,7 +634,11 @@
 
       // Buyer: Confirm Delivery (if fulfilled)
       if (isBuyer && o.status === 'fulfilled') {
-        actions.push(`<button onclick="confirmDelivery()" class="btn-success flex items-center gap-2">✓ Confirm Delivery</button>`);
+        if (walletAddr) {
+          actions.push(`<button onclick="confirmDelivery()" class="btn-success flex items-center gap-2">✓ Confirm Delivery</button>`);
+        } else {
+          actions.push(`<button onclick="AgoraWallet.connect().then(() => { if(AgoraWallet.getWalletAddress()) location.reload(); })" class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition border" style="background: rgba(171,159,242,0.1); border-color: rgba(171,159,242,0.3); color: #AB9FF2;">🔗 Connect Wallet to Confirm Delivery</button>`);
+        }
       }
 
       // Buyer: Open Dispute (if fulfilled)
@@ -890,7 +899,13 @@
     });
 
     // ─── Init ───────────────────────────────────────────────────
-    init();
+    // Deferred — wallet.js must load first
+  </script>
+  <script src="/js/wallet.js"></script>
+  <script>
+    AgoraWallet.init().then(() => init());
+    AgoraWallet.onConnect(() => { if (order) renderOrder(); });
+    AgoraWallet.onDisconnect(() => { if (order) renderOrder(); });
   </script>
 
 </body>

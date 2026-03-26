@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AGORA — Sell</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.95.8/lib/index.iife.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     body { font-family: 'Inter', sans-serif; }
@@ -83,6 +84,7 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
           <span id="auth-status-text" class="hidden md:inline text-xs"></span>
         </button>
+        <!-- Wallet button injected by wallet.js -->
       </div>
     </div>
   </nav>
@@ -138,6 +140,21 @@
               <button onclick="resetForm()" class="btn-secondary text-xs">List Another</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Wallet Gate Notice for Sell -->
+      <div id="sell-wallet-gate" class="hidden bg-[#AB9FF2]/10 border border-[#AB9FF2]/30 rounded-xl p-6 mb-6 fade-in">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">🔗</span>
+          <div class="flex-1">
+            <h3 class="font-semibold text-[#AB9FF2] mb-1">Wallet Not Connected</h3>
+            <p class="text-gray-400 text-sm">Connect your Solana wallet to associate listings with your wallet address for escrow payouts.</p>
+          </div>
+          <button onclick="AgoraWallet.connect()" class="px-4 py-2 rounded-lg text-sm font-medium transition-all flex-shrink-0"
+                  style="background: #AB9FF2; color: #0f0f23;">
+            Connect Wallet
+          </button>
         </div>
       </div>
 
@@ -550,6 +567,9 @@
       btn.innerHTML = '<span class="animate-pulse">Creating listing...</span>';
 
       try {
+        // Include wallet address if connected
+        const walletAddr = window.AgoraWallet ? AgoraWallet.getWalletAddress() : null;
+
         const body = {
           title,
           description,
@@ -562,6 +582,7 @@
             shipFromPostalCode: shipFrom.replace(/\s+/g, '').toUpperCase(),
             weightKg,
             dimensions: { lengthCm, widthCm, heightCm },
+            sellerWalletAddress: walletAddr || undefined,
           },
         };
 
@@ -751,8 +772,35 @@
       return div.innerHTML;
     }
 
+    // ─── Wallet Gate ────────────────────────────────────────────
+    function updateSellWalletGate() {
+      const gate = document.getElementById('sell-wallet-gate');
+      const submitBtn = document.getElementById('submit-btn');
+      if (!gate) return;
+      const walletAddr = window.AgoraWallet ? AgoraWallet.getWalletAddress() : null;
+      if (walletAddr) {
+        gate.classList.add('hidden');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>🏷️</span><span>List Item</span>';
+        }
+      } else {
+        gate.classList.remove('hidden');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<span>🔗</span><span>Connect Wallet to List</span>';
+        }
+      }
+    }
+
     // ─── Init ───────────────────────────────────────────────────
     checkAuth();
+  </script>
+  <script src="/js/wallet.js"></script>
+  <script>
+    AgoraWallet.init().then(() => updateSellWalletGate());
+    AgoraWallet.onConnect(() => updateSellWalletGate());
+    AgoraWallet.onDisconnect(() => updateSellWalletGate());
   </script>
 
 </body>
