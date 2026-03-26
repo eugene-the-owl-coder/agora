@@ -4,7 +4,7 @@ buildCommand = "npm ci --include=dev && npx prisma generate && npx tsc && cp -r 
 
 [deploy]
 startCommand = "./start.sh"
-healthcheckPath = "/health"
-healthcheckTimeout = 120
+# healthcheckPath = "/health"
+# healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
