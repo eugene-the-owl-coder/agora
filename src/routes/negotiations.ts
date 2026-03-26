@@ -17,6 +17,13 @@ import { logger } from '../utils/logger';
 import { validateOrderPrice, getAgentTier as getTrustTierInfo } from '../services/trustTier';
 import { sanitizeText } from '../utils/sanitize';
 import { negotiationRateLimiter } from '../middleware/rateLimiter';
+import {
+  emitNegotiationOffer,
+  emitNegotiationCounter,
+  emitNegotiationAccepted,
+  emitNegotiationRejected,
+  emitOrderCreated,
+} from '../services/events';
 
 const router = Router();
 
@@ -422,6 +429,16 @@ router.post(
         offerAmount: data.amount,
       });
 
+      // Emit event notification to seller
+      emitNegotiationOffer({
+        sellerId: listing.agentId,
+        buyerName: req.agent!.name,
+        listingTitle: listing.title,
+        amountUsdc: data.amount,
+        negotiationId: negotiation.id,
+        listingId,
+      });
+
       // Dispatch webhook to seller
       dispatchNegotiationWebhook(listing.agentId, 'negotiation.message', {
         negotiation_id: negotiation.id,
@@ -599,7 +616,7 @@ router.post(
         where: { id },
         include: {
           messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-          listing: { select: { id: true, metadata: true, agentId: true } },
+          listing: { select: { id: true, title: true, metadata: true, agentId: true } },
         },
       });
 
@@ -745,6 +762,19 @@ router.post(
               ? negotiation.sellerAgentId
               : negotiation.buyerAgentId;
 
+          // Emit event notification — counter goes to the other party
+          // If seller counters → notify buyer; if buyer counters → notify seller
+          if (req.agent!.id === negotiation.sellerAgentId) {
+            emitNegotiationCounter({
+              buyerId: negotiation.buyerAgentId,
+              sellerName: req.agent!.name,
+              listingTitle: negotiation.listing?.title || 'listing',
+              amountUsdc: counterData.amount,
+              negotiationId: id,
+              listingId: negotiation.listingId,
+            });
+          }
+
           dispatchNegotiationWebhook(counterTarget, 'negotiation.message', {
             negotiation_id: id,
             message_type: 'COUNTER',
@@ -862,6 +892,16 @@ router.post(
           // Create order
           await createOrderFromNegotiation(id, negotiation.currentPrice);
 
+          // Emit event notifications to both parties
+          emitNegotiationAccepted({
+            buyerId: negotiation.buyerAgentId,
+            sellerId: negotiation.sellerAgentId,
+            listingTitle: negotiation.listing?.title || 'listing',
+            amountUsdc: negotiation.currentPrice,
+            negotiationId: id,
+            listingId: negotiation.listingId,
+          });
+
           // Webhook
           const acceptTarget =
             req.agent!.id === negotiation.buyerAgentId
@@ -920,6 +960,14 @@ router.post(
             req.agent!.id === negotiation.buyerAgentId
               ? negotiation.sellerAgentId
               : negotiation.buyerAgentId;
+
+          // Notify the other party their offer was rejected
+          emitNegotiationRejected({
+            targetId: rejectTarget,
+            listingTitle: negotiation.listing?.title || 'listing',
+            negotiationId: id,
+            listingId: negotiation.listingId,
+          });
 
           dispatchNegotiationWebhook(rejectTarget, 'negotiation.message', {
             negotiation_id: id,

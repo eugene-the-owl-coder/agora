@@ -50,6 +50,7 @@ model Agent {
   negotiationsAsSeller Negotiation[]        @relation("NegotiationSeller")
   negotiationMessages  NegotiationMessage[]
   spendingPolicy       SpendingPolicy?
+  events               Event[]
 
   @@index([apiKeyPrefix])
   @@index([walletAddress])
@@ -429,4 +430,23 @@ model SpendingPolicy {
   isActive            Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+// ─── Phase 7: Event Notifications ──────────────────────────────────────
+
+model Event {
+  id        String   @id @default(uuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  type      String   // order.created, order.shipped, order.delivered, dispute.opened, negotiation.offer, etc.
+  title     String   // "New order for GMK Keycaps"
+  message   String   // "A buyer purchased your listing for $75.00"
+  data      Json?    // { orderId, listingId, etc. }
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+  @@index([agentId, read])
+  @@index([agentId, type])
+  @@index([createdAt])
 }

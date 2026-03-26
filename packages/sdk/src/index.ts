@@ -157,3 +157,12 @@ export { DisputesResource } from './resources/disputes';
 export { NegotiationsResource } from './resources/negotiations';
 export { SpendingPolicyResource } from './resources/spendingPolicy';
 export { ReputationResource } from './resources/reputation';
+export { EventsResource } from './resources/events';
+export type {
+  EventItem,
+  ListEventsParams,
+  ListEventsResponse,
+  UnreadCountResponse,
+  MarkReadResponse,
+  MarkAllReadResponse,
+} from './resources/events';

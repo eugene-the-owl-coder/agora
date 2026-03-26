@@ -15,6 +15,7 @@
 
 import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { emitRatingUpdated } from './events';
 
 // ─── Constants ──────────────────────────────────────────────────
 
@@ -86,6 +87,9 @@ export async function recordCleanTransaction(
       lastTransactionAt: new Date(),
     },
   });
+
+  // Emit rating event
+  emitRatingUpdated({ agentId, role, newRating });
 
   logger.info('Rating updated (clean transaction)', {
     agentId,

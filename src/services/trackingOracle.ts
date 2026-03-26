@@ -14,6 +14,7 @@ import { prisma } from '../lib/prisma';
 import { createCarrierRegistry, CarrierRegistry, TrackingResult } from './carriers';
 import { markDeliveredOnChain, releaseEscrow } from './escrow';
 import { logger } from '../utils/logger';
+import { emitOrderDelivered, emitOrderCompleted } from './events';
 import { config } from '../config';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -267,6 +268,7 @@ export class TrackingOracle {
         include: {
           buyer: { select: { walletAddress: true } },
           seller: { select: { walletAddress: true } },
+          listing: { select: { id: true, title: true } },
         },
       });
 
@@ -451,6 +453,13 @@ export class TrackingOracle {
       },
     });
 
+    // Notify buyer that the order was delivered
+    emitOrderDelivered({
+      buyerId: order.buyerAgentId,
+      listingTitle: order.listing?.title || 'your item',
+      orderId: order.id,
+    });
+
     logger.info('Delivery attestation stored', {
       orderId: order.id,
       postalCodeMatch,
@@ -545,6 +554,7 @@ export class TrackingOracle {
       },
       include: {
         seller: { select: { walletAddress: true } },
+        listing: { select: { id: true, title: true } },
       },
     });
 
@@ -634,6 +644,14 @@ export class TrackingOracle {
           },
         });
       }
+
+      // Notify both parties that transaction is complete
+      emitOrderCompleted({
+        buyerId: order.buyerAgentId,
+        sellerId: order.sellerAgentId,
+        listingTitle: order.listing?.title || 'your item',
+        orderId: order.id,
+      });
 
       logger.info('Escrow released — order completed', {
         orderId: order.id,

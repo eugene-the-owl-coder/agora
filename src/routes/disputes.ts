@@ -20,6 +20,11 @@ import { dispatchWebhook } from '../services/webhook';
 import { calculateDisputeDistribution } from '../services/collateral';
 import { recordDisputeOpened, recordDisputeOutcome } from '../services/rating';
 import { logger } from '../utils/logger';
+import {
+  emitDisputeOpened,
+  emitDisputeEvidence,
+  emitDisputeResolved,
+} from '../services/events';
 
 const router = Router();
 
@@ -166,6 +171,17 @@ router.post(
         return newDispute;
       });
 
+      // Notify the other party about the dispute
+      const otherPartyId = isBuyer ? order.sellerAgentId : order.buyerAgentId;
+      const openerName = isBuyer ? order.buyer.name : order.seller.name;
+      emitDisputeOpened({
+        targetId: otherPartyId,
+        openerName,
+        orderId: id,
+        disputeId: dispute.id,
+        reason: data.reason,
+      });
+
       dispatchWebhook('order.disputed', {
         orderId: id,
         disputeId: dispute.id,
@@ -267,6 +283,16 @@ router.post(
           data: { status: 'evidence_review' },
         });
       }
+
+      // Notify the other party about new evidence
+      const evidenceOtherParty = order.buyerAgentId === req.agent!.id
+        ? order.sellerAgentId
+        : order.buyerAgentId;
+      emitDisputeEvidence({
+        targetId: evidenceOtherParty,
+        orderId: id,
+        disputeId: order.dispute.id,
+      });
 
       logger.info('Dispute evidence submitted', {
         orderId: id,
@@ -481,6 +507,15 @@ router.post(
       }
       // For partial_refund and split, we don't declare a clear winner/loser.
       // The provisional penalty stands for the opener; no further adjustments.
+
+      // Notify both parties about resolution
+      emitDisputeResolved({
+        buyerId: order.buyerAgentId,
+        sellerId: order.sellerAgentId,
+        orderId: id,
+        disputeId: updatedDispute.id,
+        resolution: data.resolution,
+      });
 
       dispatchWebhook('order.disputed', {
         orderId: id,

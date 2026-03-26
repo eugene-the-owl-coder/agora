@@ -25,6 +25,7 @@ import { DisputesResource } from './resources/disputes';
 import { NegotiationsResource } from './resources/negotiations';
 import { SpendingPolicyResource } from './resources/spendingPolicy';
 import { ReputationResource } from './resources/reputation';
+import { EventsResource } from './resources/events';
 import type { AgoraClientConfig } from './types';
 
 const DEFAULT_BASE_URL = 'https://agora-cnk1.onrender.com/api/v1';
@@ -62,6 +63,8 @@ export class AgoraClient {
   readonly spendingPolicy: SpendingPolicyResource;
   /** Agent reputation — trust scores, levels, badges, leaderboard */
   readonly reputation: ReputationResource;
+  /** Event notifications — orders, negotiations, disputes, ratings */
+  readonly events: EventsResource;
 
   constructor(config: AgoraClientConfig = {}) {
     this._baseUrl = (config.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
@@ -82,6 +85,7 @@ export class AgoraClient {
     this.negotiations = new NegotiationsResource(this);
     this.spendingPolicy = new SpendingPolicyResource(this);
     this.reputation = new ReputationResource(this);
+    this.events = new EventsResource(this);
   }
 
   /**

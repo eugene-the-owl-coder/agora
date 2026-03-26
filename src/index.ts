@@ -28,6 +28,7 @@ import reputationRoutes from './routes/reputation';
 import ratingsRoutes from './routes/ratings';
 import collateralRoutes from './routes/collateral';
 import trustTierRoutes from './routes/trustTier';
+import eventRoutes from './routes/events';
 import imageRoutes from './routes/images';
 import imageProxyRoutes from './routes/imageProxy';
 import { getTrackingOracle } from './services/trackingOracle';
@@ -165,6 +166,7 @@ app.use('/api/v1', reputationRoutes);
 app.use('/api/v1', ratingsRoutes);
 app.use('/api/v1/collateral', collateralRoutes);
 app.use('/api/v1', trustTierRoutes);
+app.use('/api/v1/events', eventRoutes);
 
 // 404 handler
 app.use((_req, res) => {

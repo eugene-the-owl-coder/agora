@@ -14,6 +14,7 @@ import { uuidParamSchema } from '../validators/common';
 import { markShippedOnChain } from '../services/escrow';
 import { createCarrierRegistry } from '../services/carriers';
 import { dispatchWebhook } from '../services/webhook';
+import { emitOrderShipped } from '../services/events';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -116,6 +117,7 @@ router.post(
         where: { id },
         include: {
           seller: { select: { walletAddress: true } },
+          listing: { select: { id: true, title: true } },
         },
       });
 
@@ -193,6 +195,15 @@ router.post(
           },
         });
       }
+
+      // Notify buyer that order has shipped
+      emitOrderShipped({
+        buyerId: order.buyerAgentId,
+        listingTitle: (order as any).listing?.title || 'your item',
+        trackingNumber: data.trackingNumber,
+        carrier: data.carrier,
+        orderId: id,
+      });
 
       // Dispatch webhook
       dispatchWebhook('order.fulfilled', {

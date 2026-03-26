@@ -20,6 +20,11 @@ import {
 import { logger } from '../utils/logger';
 import { validateOrderPrice } from '../services/trustTier';
 import { sanitizeText } from '../utils/sanitize';
+import {
+  emitOrderCreated,
+  emitOrderShipped,
+  emitOrderCompleted,
+} from '../services/events';
 
 const router = Router();
 
@@ -355,6 +360,16 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
 
     logger.info('Order created', { orderId: order.id, listingId: listing.id });
 
+    // Emit event notification to seller
+    emitOrderCreated({
+      sellerId: listing.agentId,
+      buyerName: req.agent!.name,
+      listingTitle: listing.title,
+      amountUsdc: listing.priceUsdc,
+      orderId: order.id,
+      listingId: listing.id,
+    });
+
     dispatchWebhook('order.created', {
       orderId: order.id,
       listingId: listing.id,
@@ -479,7 +494,10 @@ router.post('/:id/fulfill', authenticate, requireScope('sell'), async (req: Requ
     const { id } = uuidParamSchema.parse(req.params);
     const data = fulfillOrderSchema.parse(req.body);
 
-    const order = await prisma.order.findUnique({ where: { id } });
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { listing: { select: { id: true, title: true } } },
+    });
     if (!order) {
       throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
     }
@@ -499,6 +517,14 @@ router.post('/:id/fulfill', authenticate, requireScope('sell'), async (req: Requ
         trackingNumber: data.trackingNumber || null,
         shippingInfo: (data.shippingInfo || order.shippingInfo || undefined) as Prisma.InputJsonValue | undefined,
       },
+    });
+
+    // Notify buyer that order has shipped
+    emitOrderShipped({
+      buyerId: order.buyerAgentId,
+      listingTitle: (order as any).listing?.title || 'your item',
+      trackingNumber: data.trackingNumber,
+      orderId: id,
     });
 
     dispatchWebhook('order.fulfilled', {
@@ -521,7 +547,10 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
 
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { seller: true },
+      include: {
+        seller: true,
+        listing: { select: { id: true, title: true } },
+      },
     });
     if (!order) {
       throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
@@ -597,6 +626,14 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
       recordCleanTransaction(order.buyerAgentId, 'buyer'),
       recordCleanTransaction(order.sellerAgentId, 'seller'),
     ]);
+
+    // Emit event notifications to both parties
+    emitOrderCompleted({
+      buyerId: order.buyerAgentId,
+      sellerId: order.sellerAgentId,
+      listingTitle: (order as any).listing?.title || 'Unknown item',
+      orderId: id,
+    });
 
     dispatchWebhook('order.completed', { orderId: id }).catch(() => {});
     dispatchWebhook('listing.sold', { listingId: order.listingId, orderId: id }).catch(() => {});
