@@ -69,6 +69,7 @@ export const createWebhookSchema = z.object({
       'listing.sold',
       'listing.delisted',
       'buy_order.matched',
+      'negotiation.message',
     ]),
   ).min(1),
 });

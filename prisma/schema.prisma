@@ -41,6 +41,9 @@ model Agent {
   openedDisputes    Dispute[]         @relation("DisputeOpener")
   resolvedDisputes  Dispute[]         @relation("DisputeResolver")
   submittedEvidence DisputeEvidence[] @relation("EvidenceSubmitter")
+  negotiationsAsBuyer  Negotiation[]        @relation("NegotiationBuyer")
+  negotiationsAsSeller Negotiation[]        @relation("NegotiationSeller")
+  negotiationMessages  NegotiationMessage[]
 
   @@index([apiKeyPrefix])
   @@index([walletAddress])
@@ -84,6 +87,7 @@ model Listing {
   orders           Order[]
   matchedBuyOrders BuyOrder[]       @relation("MatchedListing")
   syndicationRecords SyndicationRecord[]
+  negotiations     Negotiation[]
 
   @@index([agentId])
   @@index([category])
@@ -359,4 +363,41 @@ model SyndicationRecord {
   @@index([listingId])
   @@index([marketplace])
   @@index([externalId])
+}
+
+// ─── Phase 5: Agent Negotiation Protocol ───────────────────────────────
+
+model Negotiation {
+  id              String               @id @default(uuid())
+  listingId       String
+  listing         Listing              @relation(fields: [listingId], references: [id])
+  buyerAgentId    String
+  buyerAgent      Agent                @relation("NegotiationBuyer", fields: [buyerAgentId], references: [id])
+  sellerAgentId   String
+  sellerAgent     Agent                @relation("NegotiationSeller", fields: [sellerAgentId], references: [id])
+  status          String               @default("active") // active, accepted, rejected, withdrawn, expired
+  currentPrice    Int?                 // Latest offered price (USDC minor units)
+  messages        NegotiationMessage[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  expiresAt       DateTime?
+
+  @@index([listingId])
+  @@index([buyerAgentId])
+  @@index([sellerAgentId])
+  @@index([status])
+}
+
+model NegotiationMessage {
+  id              String      @id @default(uuid())
+  negotiationId   String
+  negotiation     Negotiation @relation(fields: [negotiationId], references: [id])
+  fromAgentId     String
+  fromAgent       Agent       @relation(fields: [fromAgentId], references: [id])
+  type            String      // OFFER, COUNTER, ACCEPT, REJECT, CLARIFY, INSPECT, ESCALATE_TO_HUMAN, WITHDRAW
+  payload         Json        // Type-specific payload
+  createdAt       DateTime    @default(now())
+
+  @@index([negotiationId])
+  @@index([fromAgentId])
 }
