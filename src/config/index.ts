@@ -27,6 +27,9 @@ export const config = {
     fedexClientSecret: process.env.FEDEX_CLIENT_SECRET || '',
     canadaPostUsername: process.env.CANADA_POST_USERNAME || '',
     canadaPostPassword: process.env.CANADA_POST_PASSWORD || '',
+    upsClientId: process.env.UPS_CLIENT_ID || '',
+    upsClientSecret: process.env.UPS_CLIENT_SECRET || '',
+    uspsUserId: process.env.USPS_USER_ID || '',
   },
 
   canadaPost: {
@@ -41,6 +44,13 @@ export const config = {
     clientSecret: process.env.FEDEX_CLIENT_SECRET || '',
     accountNumber: process.env.FEDEX_ACCOUNT_NUMBER || '',
     sandbox: process.env.FEDEX_SANDBOX !== 'false', // default true (sandbox)
+  },
+
+  ups: {
+    clientId: process.env.UPS_CLIENT_ID || '',
+    clientSecret: process.env.UPS_CLIENT_SECRET || '',
+    accountNumber: process.env.UPS_ACCOUNT_NUMBER || '',
+    sandbox: process.env.UPS_SANDBOX !== 'false', // default true (sandbox)
   },
 
   shipping: {
