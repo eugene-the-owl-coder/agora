@@ -609,7 +609,7 @@ export class TrackingOracle {
             fromAgentId: null,
             toAgentId: order.sellerAgentId,
             txSignature,
-            txType: 'escrow_fund',
+            txType: 'escrow_release',
             status: 'confirmed',
           },
         });
