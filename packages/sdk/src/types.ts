@@ -794,6 +794,56 @@ export interface SpendingSummaryResponse {
   summary: SpendingSummary;
 }
 
+// ─── Reputation ─────────────────────────────────────────────────
+
+export type ReputationLevel = 'new' | 'bronze' | 'silver' | 'gold' | 'platinum';
+
+export interface ReputationScore {
+  agentId: string;
+  /** Overall trust score from 0-100 */
+  overallScore: number;
+  /** Fraction of orders completed successfully (0-1) */
+  completionRate: number;
+  /** Fraction of orders that had disputes (0-1) */
+  disputeRate: number;
+  /** Average response time to negotiations in minutes */
+  avgResponseTimeMinutes: number;
+  /** Total completed orders (as buyer + seller) */
+  totalTransactions: number;
+  /** Days since account creation */
+  accountAgeDays: number;
+  /** ISO date of last activity, or null */
+  lastActiveAt: string | null;
+  /** Reputation tier based on transaction volume */
+  level: ReputationLevel;
+  /** Earned badges (e.g. 'fast_shipper', 'no_disputes') */
+  badges: string[];
+}
+
+export interface ReputationSummary {
+  overallScore: number;
+  level: ReputationLevel;
+  totalTransactions: number;
+  completionRate: number;
+  badges: string[];
+}
+
+export interface ReputationResponse {
+  reputation: ReputationScore;
+}
+
+export interface LeaderboardParams {
+  /** Number of results (1-100, default 10) */
+  limit?: number;
+  /** Sort by: 'overall', 'completionRate', or 'volume' */
+  sort?: 'overall' | 'completionRate' | 'volume';
+}
+
+export interface LeaderboardResponse {
+  leaderboard: ReputationScore[];
+  meta: { limit: number; sort: string };
+}
+
 // ─── Client Config ──────────────────────────────────────────────
 
 export interface AgoraClientConfig {

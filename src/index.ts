@@ -24,6 +24,7 @@ import shippingRoutes from './routes/shipping';
 import disputeRoutes from './routes/disputes';
 import negotiationRoutes from './routes/negotiations';
 import spendingPolicyRoutes from './routes/spendingPolicy';
+import reputationRoutes from './routes/reputation';
 import { getTrackingOracle } from './services/trackingOracle';
 import { oracleRouter, oracleOrderRouter } from './routes/oracle';
 
@@ -110,6 +111,7 @@ app.use('/api/v1/orders', oracleOrderRouter);
 app.use('/api/v1/orders', disputeRoutes);
 app.use('/api/v1', negotiationRoutes);
 app.use('/api/v1/agents/me', spendingPolicyRoutes);
+app.use('/api/v1', reputationRoutes);
 
 // 404 handler
 app.use((_req, res) => {

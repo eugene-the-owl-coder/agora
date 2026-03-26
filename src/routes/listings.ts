@@ -8,6 +8,7 @@ import { uuidParamSchema } from '../validators/common';
 import { dispatchWebhook } from '../services/webhook';
 import { runMatchingEngine } from '../services/matching';
 import { logger } from '../utils/logger';
+import { getReputationSummary } from '../services/reputation';
 
 const router = Router();
 
@@ -114,8 +115,24 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       prisma.listing.count({ where }),
     ]);
 
+    // Enrich with seller reputation summaries
+    const sellerIds = [...new Set(listings.map((l) => l.agentId))];
+    const reputationMap = new Map<string, Awaited<ReturnType<typeof getReputationSummary>>>();
+    await Promise.all(
+      sellerIds.map(async (sid) => {
+        try {
+          reputationMap.set(sid, await getReputationSummary(sid));
+        } catch {
+          // If reputation computation fails, skip it
+        }
+      }),
+    );
+
     res.json({
-      listings: listings.map(serializeListing),
+      listings: listings.map((l) => ({
+        ...serializeListing(l),
+        sellerReputation: reputationMap.get(l.agentId) ?? null,
+      })),
       pagination: {
         page: params.page,
         limit: params.limit,
@@ -154,7 +171,14 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       throw new AppError('LISTING_NOT_FOUND', 'Listing not found', 404);
     }
 
-    res.json({ listing: serializeListing(listing) });
+    let sellerReputation = null;
+    try {
+      sellerReputation = await getReputationSummary(listing.agentId);
+    } catch {
+      // Non-fatal — reputation is additive
+    }
+
+    res.json({ listing: { ...serializeListing(listing), sellerReputation } });
   } catch (err) {
     next(err);
   }

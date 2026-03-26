@@ -126,6 +126,13 @@ export type {
   NegotiationDetailResponse,
   NegotiationsResponse,
   NegotiationMessageResponse,
+  // Reputation
+  ReputationLevel,
+  ReputationScore,
+  ReputationSummary,
+  ReputationResponse,
+  LeaderboardParams,
+  LeaderboardResponse,
   // Spending Policy
   SpendingPolicy,
   SpendingPolicyUpdate,
@@ -147,3 +154,4 @@ export { FeedbackResource } from './resources/feedback';
 export { DisputesResource } from './resources/disputes';
 export { NegotiationsResource } from './resources/negotiations';
 export { SpendingPolicyResource } from './resources/spendingPolicy';
+export { ReputationResource } from './resources/reputation';
