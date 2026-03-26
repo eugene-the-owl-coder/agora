@@ -120,6 +120,9 @@ model Order {
   trackingNumber  String?
   carrier         String?
   tier            Int         @default(1)
+  buyerCollateralUsdc   BigInt?
+  sellerCollateralUsdc  BigInt?
+  collateralRatio       Float?    @default(1.0)
   disputeReason   String?
   deliveredAt     DateTime?
   resolvedAt      DateTime?

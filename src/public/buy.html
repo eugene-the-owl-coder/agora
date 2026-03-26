@@ -226,17 +226,47 @@
         </div>
       </div>
 
+      <!-- Collateral Notice -->
+      <div id="collateral-section" class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6 hidden">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">🛡️ Trust Collateral</h2>
+        <div class="bg-indigo-500/5 border border-indigo-500/10 rounded-lg p-3 text-xs text-indigo-300/80 mb-4">
+          Both buyer and seller stake collateral to make fraud economically irrational. Your collateral is <strong>fully returned</strong> when the order completes successfully.
+        </div>
+        <div class="space-y-2 text-sm">
+          <div class="flex justify-between">
+            <span class="text-gray-400">Item Price</span>
+            <span id="collateral-item-price" class="text-white font-medium"></span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Your Collateral <span class="text-xs text-amber-400/70">(returned)</span></span>
+            <span id="collateral-buyer-amount" class="text-amber-400 font-medium"></span>
+          </div>
+          <div class="flex justify-between text-xs text-gray-600">
+            <span>Collateral Ratio</span>
+            <span id="collateral-ratio-display"></span>
+          </div>
+          <hr class="border-white/5 my-1">
+          <div class="flex justify-between">
+            <span class="text-gray-400">Seller's Collateral <span class="text-xs text-gray-600">(their stake)</span></span>
+            <span id="collateral-seller-amount" class="text-gray-500 font-medium"></span>
+          </div>
+        </div>
+      </div>
+
       <!-- Place Order -->
       <div class="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
         <div class="flex items-center justify-between mb-2">
           <div>
-            <h2 class="font-semibold">Total</h2>
-            <p class="text-xs text-gray-500">Funds will be held in escrow until delivery is confirmed</p>
+            <h2 class="font-semibold">Total Due Now</h2>
+            <p class="text-xs text-gray-500">Item price + collateral held in escrow until delivery is confirmed</p>
           </div>
           <div class="text-right">
             <div id="total-price" class="text-2xl font-bold text-emerald-400"></div>
             <div id="total-breakdown" class="text-xs text-gray-500 hidden">
               <span id="breakdown-item"></span> + <span id="breakdown-shipping"></span> shipping
+            </div>
+            <div id="total-collateral-note" class="text-xs text-amber-400/70 hidden">
+              includes <span id="collateral-note-amount"></span> refundable collateral
             </div>
           </div>
         </div>
@@ -305,6 +335,7 @@
     let selectedShipping = null;
     let shippingRates = [];
     let shippingDebounceTimer = null;
+    let collateralEstimate = null;
 
     // ─── Auth Helpers ───────────────────────────────────────────
     function getApiKey() { return localStorage.getItem(STORAGE_KEY); }
@@ -484,8 +515,42 @@
       document.getElementById('item-price').textContent = price;
       document.getElementById('total-price').textContent = price;
 
+      // Fetch collateral estimate
+      fetchCollateralEstimate();
+
       // Set up shipping rate listeners
       setupShippingListeners();
+    }
+
+    async function fetchCollateralEstimate() {
+      if (!currentListing) return;
+      try {
+        const res = await fetch(`${API_BASE}/collateral/estimate?priceUsdc=${currentListing.priceUsdc}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        collateralEstimate = data.estimate;
+
+        const section = document.getElementById('collateral-section');
+        section.classList.remove('hidden');
+
+        // Use the "worst case" (Tier 0) for display, since we don't know buyer's tier yet
+        const worstCase = collateralEstimate.maximum;
+        const bestCase = collateralEstimate.minimum;
+        const itemPrice = collateralEstimate.price;
+
+        // Show maximum collateral (what a new user would see)
+        document.getElementById('collateral-item-price').textContent = formatPrice(itemPrice.toString());
+        document.getElementById('collateral-buyer-amount').textContent = formatPrice(worstCase.buyerCollateralUsdc.toString());
+        document.getElementById('collateral-seller-amount').textContent = formatPrice(worstCase.sellerCollateralUsdc.toString());
+        document.getElementById('collateral-ratio-display').textContent =
+          `${(worstCase.collateralRatio * 100).toFixed(0)}% (may be lower for established accounts)`;
+
+        // Update total to include collateral
+        updateTotal();
+      } catch (err) {
+        // Collateral estimate is non-critical — proceed without it
+        console.warn('Failed to fetch collateral estimate:', err);
+      }
     }
 
     async function placeOrder() {
@@ -699,7 +764,8 @@
     function updateTotal() {
       const itemPrice = parseFloat(currentListing?.priceUsdc || '0');
       const shippingPrice = selectedShipping ? selectedShipping.priceUSDC : 0;
-      const total = itemPrice + shippingPrice;
+      const buyerCollateral = collateralEstimate ? collateralEstimate.maximum.buyerCollateralUsdc : 0;
+      const total = itemPrice + shippingPrice + buyerCollateral;
 
       document.getElementById('total-price').textContent = formatPrice(total.toString());
 
@@ -710,6 +776,16 @@
         breakdownEl.classList.remove('hidden');
       } else {
         breakdownEl.classList.add('hidden');
+      }
+
+      // Show collateral note
+      const colNoteEl = document.getElementById('total-collateral-note');
+      const colAmountEl = document.getElementById('collateral-note-amount');
+      if (buyerCollateral > 0) {
+        colAmountEl.textContent = formatPrice(buyerCollateral.toString());
+        colNoteEl.classList.remove('hidden');
+      } else {
+        colNoteEl.classList.add('hidden');
       }
     }
 

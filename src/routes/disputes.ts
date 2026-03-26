@@ -17,6 +17,7 @@ import { uuidParamSchema } from '../validators/common';
 import { openDisputeSchema, submitEvidenceSchema, resolveDisputeSchema } from '../validators/disputes';
 import { openDisputeOnChain, refundEscrow, releaseEscrow } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
+import { calculateDisputeDistribution } from '../services/collateral';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -294,6 +295,28 @@ router.post(
 
       if (order.dispute.status === 'resolved') {
         throw new AppError('ALREADY_RESOLVED', 'This dispute has already been resolved', 400);
+      }
+
+      // Calculate collateral distribution
+      const buyerCollateral = Number(order.buyerCollateralUsdc ?? 0);
+      const sellerCollateral = Number(order.sellerCollateralUsdc ?? 0);
+      const itemPrice = Number(order.amountUsdc);
+
+      if (buyerCollateral > 0 || sellerCollateral > 0) {
+        const distribution = calculateDisputeDistribution(
+          data.resolution,
+          buyerCollateral,
+          sellerCollateral,
+          itemPrice,
+        );
+        logger.info('Dispute collateral distribution calculated', {
+          orderId: id,
+          resolution: data.resolution,
+          buyerReceives: distribution.buyerReceives,
+          sellerReceives: distribution.sellerReceives,
+          platformReceives: distribution.platformReceives,
+          description: distribution.description,
+        });
       }
 
       // Execute the resolution on-chain

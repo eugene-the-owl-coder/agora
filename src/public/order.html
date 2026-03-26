@@ -189,7 +189,7 @@
               <code id="escrow-address" class="text-xs text-indigo-300 break-all">—</code>
             </div>
             <div>
-              <div class="text-xs text-gray-500">Amount in Escrow</div>
+              <div class="text-xs text-gray-500">Item Price</div>
               <div id="escrow-amount" class="text-sm text-emerald-400 font-semibold">—</div>
             </div>
             <div>
@@ -199,6 +199,37 @@
             <div id="grace-period-container" class="hidden">
               <div class="text-xs text-gray-500">Grace Period</div>
               <div id="grace-period" class="text-sm text-amber-400">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Collateral Details -->
+        <div id="collateral-section" class="hidden bg-white/5 border border-white/10 rounded-xl p-6">
+          <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">🛡️ Mutual Collateral</h2>
+          <div class="space-y-3">
+            <div class="bg-indigo-500/5 border border-indigo-500/10 rounded-lg p-3 text-xs text-indigo-300/80 mb-2">
+              Both parties stake collateral to make fraud economically irrational. Collateral is returned on clean completion.
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <div class="text-xs text-gray-500">Buyer Collateral</div>
+                <div id="buyer-collateral" class="text-sm text-amber-400 font-semibold">—</div>
+                <div class="text-xs text-gray-600 mt-0.5">Returned on receipt</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Seller Collateral</div>
+                <div id="seller-collateral" class="text-sm text-amber-400 font-semibold">—</div>
+                <div class="text-xs text-gray-600 mt-0.5">Returned on completion</div>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Collateral Ratio</div>
+              <div id="collateral-ratio" class="text-sm text-gray-300">—</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Total Locked in Escrow</div>
+              <div id="total-locked" class="text-sm text-white font-semibold">—</div>
+              <div class="text-xs text-gray-600 mt-0.5">Item price + buyer collateral + seller collateral</div>
             </div>
           </div>
         </div>
@@ -456,6 +487,22 @@
         container.classList.remove('hidden');
         const graceHours = oracleData.gracePeriodHours || 72;
         document.getElementById('grace-period').textContent = `${graceHours}h after delivery confirmation`;
+      }
+
+      // Collateral details
+      if (o.buyerCollateralUsdc || o.sellerCollateralUsdc) {
+        const section = document.getElementById('collateral-section');
+        section.classList.remove('hidden');
+        const buyerCol = parseFloat(o.buyerCollateralUsdc || '0');
+        const sellerCol = parseFloat(o.sellerCollateralUsdc || '0');
+        const itemPrice = parseFloat(o.amountUsdc || '0');
+        const totalLocked = itemPrice + buyerCol + sellerCol;
+
+        document.getElementById('buyer-collateral').textContent = formatPrice(buyerCol.toString());
+        document.getElementById('seller-collateral').textContent = formatPrice(sellerCol.toString());
+        document.getElementById('collateral-ratio').textContent =
+          `${((o.collateralRatio || 1.0) * 100).toFixed(0)}% of item price`;
+        document.getElementById('total-locked').textContent = formatPrice(totalLocked.toString());
       }
 
       // Escrow state machine

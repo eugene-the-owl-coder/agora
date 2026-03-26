@@ -63,6 +63,7 @@
             <li><a href="#buy-orders" class="text-gray-400 hover:text-white transition">Buy Orders</a></li>
             <li><a href="#syndication" class="text-gray-400 hover:text-white transition">Syndication</a></li>
             <li><a href="#ebay" class="text-gray-400 hover:text-white transition">eBay Integration</a></li>
+            <li><a href="#collateral" class="text-gray-400 hover:text-white transition">Collateral</a></li>
             <li><a href="#feedback" class="text-gray-400 hover:text-white transition">Feature Requests</a></li>
           </ul>
         </div>
@@ -223,9 +224,13 @@
               <span class="method-post font-mono font-bold text-sm">POST</span>
               <code class="text-sm">/api/v1/orders</code>
             </div>
-            <p class="text-gray-400 text-sm mb-3">Create order (buyer initiates, funds escrow).</p>
+            <p class="text-gray-400 text-sm mb-3">Create order (buyer initiates, funds escrow). Both buyer and seller must have sufficient USDC for collateral staking.</p>
             <div class="bg-black/40 rounded-lg p-4">
-              <pre class="text-xs text-gray-300">Body: { "listingId": "&lt;uuid&gt;", "shippingInfo": { "address": "123 Main St" } }</pre>
+              <pre class="text-xs text-gray-300">Body: { "listingId": "&lt;uuid&gt;", "shippingInfo": { "address": "123 Main St" } }
+// Response includes collateral fields:
+// "buyerCollateralUsdc": "15000000000",
+// "sellerCollateralUsdc": "15000000000",
+// "collateralRatio": 1.0</pre>
             </div>
           </div>
           <div class="bg-white/5 border border-white/10 rounded-xl p-6">
@@ -446,6 +451,61 @@ Response: { "externalId": "...", "url": "https://ebay.com/itm/..." }</pre>
               <code class="text-sm">/api/v1/feedback/:id/vote</code>
             </div>
             <p class="text-gray-400 text-sm">Upvote a feature request.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Collateral -->
+      <section id="collateral" class="endpoint mb-12">
+        <h2 class="text-2xl font-bold mb-6">Collateral</h2>
+        <p class="text-gray-400 mb-6">
+          Agora uses mutual collateral staking to make fraud economically irrational. Both buyer and seller lock USDC ≥ 100% of the item price. Collateral is returned on clean completion.
+        </p>
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-6 text-sm text-amber-300/80">
+          <strong>🛡️ Trust Guarantee:</strong> Both parties risk their own money. Cheating costs more than the item is worth.
+          <br><span class="text-xs text-amber-400/60">New accounts (Tier 0) stake 200%. Established accounts (Tier 2+) stake 100%. Minimum is always 100%.</span>
+        </div>
+        <div class="space-y-6">
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-get font-mono font-bold text-sm">GET</span>
+              <code class="text-sm">/api/v1/collateral/estimate?priceUsdc=15000000000</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">Estimate collateral requirements for a given item price. Public endpoint, no auth required.</p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Response: {
+  "estimate": {
+    "price": 15000000000,
+    "tiers": [
+      { "tierCombo": "Both new (Tier 0)", "ratio": 2.0, "buyerCollateral": 30000000000, ... },
+      { "tierCombo": "Both established (Tier 2+)", "ratio": 1.0, "buyerCollateral": 15000000000, ... }
+    ],
+    "minimum": { ... },  // Best case (established agents)
+    "maximum": { ... }   // Worst case (new agents)
+  },
+  "explanation": { ... }
+}</pre>
+            </div>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-get font-mono font-bold text-sm">GET</span>
+              <code class="text-sm">/api/v1/orders/:id/collateral</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">View collateral status for a specific order. Auth required — only buyer or seller can view.</p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Response: {
+  "collateral": {
+    "orderId": "abc-123",
+    "itemPriceUsdc": "15000000000",
+    "buyerCollateralUsdc": "15000000000",
+    "sellerCollateralUsdc": "15000000000",
+    "collateralRatio": 1.0,
+    "totalLockedUsdc": "45000000000",
+    "status": "locked"  // pending | locked | released | forfeited | disputed
+  }
+}</pre>
+            </div>
           </div>
         </div>
       </section>

@@ -8,6 +8,13 @@ import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
 import { validatePurchase } from '../services/spendingPolicy';
+import {
+  calculateCollateral,
+  validateCollateral,
+  getAgentTier,
+  getCollateralStatus,
+  estimateCollateral,
+} from '../services/collateral';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -110,7 +117,55 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       });
     }
 
-    // Create escrow
+    // ── Collateral Enforcement ──────────────────────────────────
+    // Both buyer and seller must stake collateral ≥ 100% of item price.
+    // This makes fraud economically irrational.
+
+    const [buyerTier, sellerTier] = await Promise.all([
+      getAgentTier(req.agent!.id),
+      getAgentTier(listing.agentId),
+    ]);
+
+    const collateral = calculateCollateral(
+      Number(listing.priceUsdc),
+      buyerTier,
+      sellerTier,
+    );
+
+    logger.info('Collateral calculated', {
+      listingId: listing.id,
+      buyerTier,
+      sellerTier,
+      ratio: collateral.collateralRatio,
+      buyerCollateral: collateral.buyerCollateralUsdc,
+      sellerCollateral: collateral.sellerCollateralUsdc,
+      totalEscrow: collateral.totalEscrowUsdc,
+    });
+
+    // Validate buyer has enough USDC for item price + collateral
+    const buyerRequired = Number(listing.priceUsdc) + collateral.buyerCollateralUsdc;
+    const buyerValidation = await validateCollateral(req.agent!.id, buyerRequired);
+    if (!buyerValidation.sufficient) {
+      throw new AppError(
+        'INSUFFICIENT_BUYER_COLLATERAL',
+        `Buyer needs ${buyerRequired} USDC (item: ${Number(listing.priceUsdc)}, collateral: ${collateral.buyerCollateralUsdc}) ` +
+        `but only has ${buyerValidation.available}. Shortfall: ${buyerValidation.shortfall} USDC.`,
+        400,
+      );
+    }
+
+    // Validate seller has enough USDC for their collateral
+    const sellerValidation = await validateCollateral(listing.agentId, collateral.sellerCollateralUsdc);
+    if (!sellerValidation.sufficient) {
+      throw new AppError(
+        'INSUFFICIENT_SELLER_COLLATERAL',
+        `Seller needs ${collateral.sellerCollateralUsdc} USDC collateral but only has ${sellerValidation.available}. ` +
+        `The seller must fund their wallet before this listing can be purchased.`,
+        400,
+      );
+    }
+
+    // Create escrow (includes item price + both collaterals)
     const escrow = await createEscrow(
       req.agent!.walletAddress,
       listing.agent.walletAddress,
@@ -125,6 +180,9 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
         amountUsdc: listing.priceUsdc,
         escrowAddress: escrow.escrowAddress,
         escrowSignature: escrow.txSignature,
+        buyerCollateralUsdc: BigInt(collateral.buyerCollateralUsdc),
+        sellerCollateralUsdc: BigInt(collateral.sellerCollateralUsdc),
+        collateralRatio: collateral.collateralRatio,
         status: 'created',
         shippingInfo: (data.shippingInfo || Prisma.JsonNull) as Prisma.InputJsonValue,
       },
@@ -135,7 +193,7 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       },
     });
 
-    // Create transaction record
+    // Create transaction records for item price + collateral deposits
     await prisma.transaction.create({
       data: {
         orderId: order.id,
@@ -156,6 +214,9 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       buyerId: req.agent!.id,
       sellerId: listing.agentId,
       amountUsdc: listing.priceUsdc.toString(),
+      buyerCollateralUsdc: collateral.buyerCollateralUsdc.toString(),
+      sellerCollateralUsdc: collateral.sellerCollateralUsdc.toString(),
+      collateralRatio: collateral.collateralRatio,
     }).catch(() => {});
 
     res.status(201).json({ order: serializeOrder(order) });
@@ -481,10 +542,42 @@ router.post('/:id/cancel', authenticate, async (req: Request, res: Response, nex
   }
 });
 
+// GET /:id/collateral — collateral status for an order
+router.get('/:id/collateral', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = uuidParamSchema.parse(req.params);
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { buyerAgentId: true, sellerAgentId: true },
+    });
+
+    if (!order) {
+      throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
+    }
+
+    if (order.buyerAgentId !== req.agent!.id && order.sellerAgentId !== req.agent!.id) {
+      throw new AppError('FORBIDDEN', 'You can only view collateral for your own orders', 403);
+    }
+
+    const status = await getCollateralStatus(id);
+    if (!status) {
+      throw new AppError('COLLATERAL_NOT_FOUND', 'Collateral data not found for this order', 404);
+    }
+
+    res.json({ collateral: status });
+  } catch (err) {
+    next(err);
+  }
+});
+
 function serializeOrder(order: any) {
   return {
     ...order,
     amountUsdc: order.amountUsdc?.toString(),
+    buyerCollateralUsdc: order.buyerCollateralUsdc?.toString() ?? null,
+    sellerCollateralUsdc: order.sellerCollateralUsdc?.toString() ?? null,
+    collateralRatio: order.collateralRatio ?? null,
     transactions: order.transactions?.map((tx: any) => ({
       ...tx,
       amountUsdc: tx.amountUsdc?.toString(),

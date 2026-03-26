@@ -25,6 +25,7 @@ import disputeRoutes from './routes/disputes';
 import negotiationRoutes from './routes/negotiations';
 import spendingPolicyRoutes from './routes/spendingPolicy';
 import reputationRoutes from './routes/reputation';
+import collateralRoutes from './routes/collateral';
 import { getTrackingOracle } from './services/trackingOracle';
 import { oracleRouter, oracleOrderRouter } from './routes/oracle';
 
@@ -112,6 +113,7 @@ app.use('/api/v1/orders', disputeRoutes);
 app.use('/api/v1', negotiationRoutes);
 app.use('/api/v1/agents/me', spendingPolicyRoutes);
 app.use('/api/v1', reputationRoutes);
+app.use('/api/v1/collateral', collateralRoutes);
 
 // 404 handler
 app.use((_req, res) => {
