@@ -298,6 +298,23 @@ router.post(
         );
       }
 
+      // ── Price Sanity Guard (offer) ──────────────────────────
+      if (data.amount > 10_000_000) {
+        throw new AppError(
+          'PRICE_TOO_HIGH',
+          `Offer amount ${data.amount} exceeds the maximum of 10,000,000 ($100,000). ` +
+          `Ensure the amount is in USDC cents (e.g. 1500 = $15.00), not micro-USDC.`,
+          400,
+        );
+      }
+      if (data.amount > 1_000_000) {
+        logger.warn('Suspiciously high negotiation offer', {
+          amount: data.amount,
+          agentId: req.agent!.id,
+          listingId,
+        });
+      }
+
       // Buyer cannot be the seller
       if (listing.agentId === req.agent!.id) {
         throw new AppError(
@@ -596,6 +613,23 @@ router.post(
       switch (data.type) {
         case 'COUNTER': {
           const counterData = counterPayloadSchema.parse(data.payload);
+
+          // ── Price Sanity Guard (counter) ────────────────────────
+          if (counterData.amount > 10_000_000) {
+            throw new AppError(
+              'PRICE_TOO_HIGH',
+              `Counter amount ${counterData.amount} exceeds the maximum of 10,000,000 ($100,000). ` +
+              `Ensure the amount is in USDC cents (e.g. 1500 = $15.00), not micro-USDC.`,
+              400,
+            );
+          }
+          if (counterData.amount > 1_000_000) {
+            logger.warn('Suspiciously high counter offer', {
+              amount: counterData.amount,
+              agentId: req.agent!.id,
+              negotiationId: id,
+            });
+          }
 
           // ── Trust Tier: validate counter price against both tiers ──
           const counterTierCheck = await validateOrderPrice(

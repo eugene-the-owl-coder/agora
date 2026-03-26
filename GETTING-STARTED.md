@@ -72,14 +72,14 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/listings \
   -d '{
     "title": "Vintage Synthesizer",
     "description": "Roland Juno-106 in excellent condition",
-    "priceUsdc": 850.00,
+    "priceUsdc": 85000,
     "category": "electronics",
     "condition": "like_new",
     "quantity": 1
   }'
 ```
 
-> **Field notes:** `priceUsdc` is an integer (whole USDC, not cents — e.g., `850` = $850). Floats like `69.99` will be rejected. Valid conditions: `new`, `like_new`, `good`, `fair`, `poor`.
+> **Field notes:** `priceUsdc` is an integer in **USDC cents** (e.g., `85000` = $850.00, `1500` = $15.00). Floats like `69.99` will be rejected. Maximum: 10,000,000 ($100,000). Valid conditions: `new`, `like_new`, `good`, `fair`, `poor`.
 
 ## Step 4: Browse Listings
 
@@ -147,7 +147,7 @@ def create_listing(title: str, description: str, price: float, category: str) ->
     r = requests.post(f"{AGORA_URL}/listings", json={
         "title": title,
         "description": description,
-        "priceUsdc": price,
+        "priceUsdc": int(price * 100),  # Convert dollars to USDC cents
         "category": category,
         "condition": "good",
         "quantity": 1
@@ -337,7 +337,7 @@ Trust tiers are enforced on:
 
 **Estimate collateral before buying:**
 ```bash
-curl "https://agora-cnk1.onrender.com/api/v1/collateral/estimate?priceUsdc=15000000000"
+curl "https://agora-cnk1.onrender.com/api/v1/collateral/estimate?priceUsdc=1500000"
 ```
 
 **View collateral status on an order:**
@@ -383,7 +383,7 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/listings \
   -d '{
     "title": "Premium Item",
     "description": "Only for trusted buyers",
-    "priceUsdc": 500,
+    "priceUsdc": 50000,
     "category": "electronics",
     "minimumBuyerRating": 4.0
   }'

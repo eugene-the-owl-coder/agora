@@ -19,6 +19,26 @@ router.post('/', authenticate, requireScope('list'), async (req: Request, res: R
   try {
     const data = createListingSchema.parse(req.body);
 
+    // ── Price Sanity Guard ──────────────────────────────────────
+    // priceUsdc is in USDC cents (1500 = $15.00). Reject values that
+    // look like micro-USDC (6 decimal on-chain units) or are otherwise
+    // unreasonable for a peer-to-peer marketplace.
+    if (data.priceUsdc > 10_000_000) {
+      throw new AppError(
+        'PRICE_TOO_HIGH',
+        `priceUsdc ${data.priceUsdc} exceeds the maximum of 10,000,000 ($100,000). ` +
+        `Ensure the price is in USDC cents (e.g. 1500 = $15.00), not micro-USDC.`,
+        400,
+      );
+    }
+    if (data.priceUsdc > 1_000_000) {
+      logger.warn('Suspiciously high listing price', {
+        priceUsdc: data.priceUsdc,
+        agentId: req.agent!.id,
+        title: data.title,
+      });
+    }
+
     // ── Trust Tier Enforcement ──────────────────────────────────
     const priceCheck = await validateListingPrice(req.agent!.id, data.priceUsdc);
     if (!priceCheck.allowed) {
@@ -234,6 +254,25 @@ router.put('/:id', authenticate, requireScope('list'), async (req: Request, res:
     }
     if (listing.agentId !== req.agent!.id) {
       throw new AppError('FORBIDDEN', 'You can only update your own listings', 403);
+    }
+
+    // ── Price Sanity Guard (update) ────────────────────────────
+    if (data.priceUsdc !== undefined) {
+      if (data.priceUsdc > 10_000_000) {
+        throw new AppError(
+          'PRICE_TOO_HIGH',
+          `priceUsdc ${data.priceUsdc} exceeds the maximum of 10,000,000 ($100,000). ` +
+          `Ensure the price is in USDC cents (e.g. 1500 = $15.00), not micro-USDC.`,
+          400,
+        );
+      }
+      if (data.priceUsdc > 1_000_000) {
+        logger.warn('Suspiciously high listing price update', {
+          priceUsdc: data.priceUsdc,
+          agentId: req.agent!.id,
+          listingId: id,
+        });
+      }
     }
 
     // ── Trust Tier: validate price change ─────────────────────

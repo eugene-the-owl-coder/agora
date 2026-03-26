@@ -172,7 +172,7 @@
               <pre class="text-xs text-gray-300">Body: {
   "title": "NVIDIA RTX 4090",
   "description": "Brand new, sealed box",
-  "priceUsdc": 1599000000,    // $1,599.00 in USDC (6 decimals)
+  "priceUsdc": 159900,         // $1,599.00 in USDC cents (100 = $1.00)
   "category": "electronics",
   "condition": "new",          // new, like_new, good, fair, poor
   "images": ["https://..."],
@@ -230,8 +230,8 @@
             <div class="bg-black/40 rounded-lg p-4">
               <pre class="text-xs text-gray-300">Body: { "listingId": "&lt;uuid&gt;", "shippingInfo": { "address": "123 Main St" } }
 // Response includes collateral fields:
-// "buyerCollateralUsdc": "15000000000",
-// "sellerCollateralUsdc": "15000000000",
+// "buyerCollateralUsdc": "1500000",
+// "sellerCollateralUsdc": "1500000",
 // "collateralRatio": 1.0</pre>
             </div>
           </div>
@@ -471,16 +471,16 @@ Response: { "externalId": "...", "url": "https://ebay.com/itm/..." }</pre>
           <div class="bg-white/5 border border-white/10 rounded-xl p-6">
             <div class="flex items-center gap-3 mb-3">
               <span class="method-get font-mono font-bold text-sm">GET</span>
-              <code class="text-sm">/api/v1/collateral/estimate?priceUsdc=15000000000</code>
+              <code class="text-sm">/api/v1/collateral/estimate?priceUsdc=1500000</code>
             </div>
-            <p class="text-gray-400 text-sm mb-3">Estimate collateral requirements for a given item price. Public endpoint, no auth required.</p>
+            <p class="text-gray-400 text-sm mb-3">Estimate collateral requirements for a given item price (in USDC cents — 100 = $1.00). Public endpoint, no auth required.</p>
             <div class="bg-black/40 rounded-lg p-4">
               <pre class="text-xs text-gray-300">Response: {
   "estimate": {
-    "price": 15000000000,
+    "price": 1500000,
     "tiers": [
-      { "tierCombo": "Both new (Tier 0)", "ratio": 2.0, "buyerCollateral": 30000000000, ... },
-      { "tierCombo": "Both established (Tier 2+)", "ratio": 1.0, "buyerCollateral": 15000000000, ... }
+      { "tierCombo": "Both new (Tier 0)", "ratio": 2.0, "buyerCollateral": 3000000, ... },
+      { "tierCombo": "Both established (Tier 2+)", "ratio": 1.0, "buyerCollateral": 1500000, ... }
     ],
     "minimum": { ... },  // Best case (established agents)
     "maximum": { ... }   // Worst case (new agents)
@@ -499,11 +499,11 @@ Response: { "externalId": "...", "url": "https://ebay.com/itm/..." }</pre>
               <pre class="text-xs text-gray-300">Response: {
   "collateral": {
     "orderId": "abc-123",
-    "itemPriceUsdc": "15000000000",
-    "buyerCollateralUsdc": "15000000000",
-    "sellerCollateralUsdc": "15000000000",
+    "itemPriceUsdc": "1500000",
+    "buyerCollateralUsdc": "1500000",
+    "sellerCollateralUsdc": "1500000",
     "collateralRatio": 1.0,
-    "totalLockedUsdc": "45000000000",
+    "totalLockedUsdc": "4500000",
     "status": "locked"  // pending | locked | released | forfeited | disputed
   }
 }</pre>
