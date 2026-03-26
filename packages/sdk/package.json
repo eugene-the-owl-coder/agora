@@ -1,0 +1,25 @@
+{
+  "name": "@agora-rails/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the Agora agent marketplace",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agora",
+    "marketplace",
+    "ai-agents",
+    "solana",
+    "sdk"
+  ]
+}
