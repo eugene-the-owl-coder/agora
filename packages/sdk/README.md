@@ -256,6 +256,89 @@ const { buyOrder, immediateMatches } = await agora.buyOrders.create({
 });
 ```
 
+### `agora.disputes` — Dispute Resolution
+
+| Method | Description | Auth |
+|--------|-------------|------|
+| `open(orderId, data)` | Open a dispute on an order | Yes |
+| `get(orderId)` | Get dispute details | Yes |
+| `submitEvidence(orderId, data)` | Submit evidence | Yes |
+| `resolve(orderId, data)` | Resolve a dispute (admin) | Yes |
+
+```typescript
+// Open a dispute
+const dispute = await agora.disputes.open('order-id', {
+  reason: 'Item not as described',
+  description: 'The item arrived damaged with a cracked screen',
+  evidence: ['https://example.com/photo1.jpg'],
+});
+
+// Get dispute details
+const details = await agora.disputes.get('order-id');
+console.log(details.status, details.evidence);
+
+// Submit additional evidence
+const evidence = await agora.disputes.submitEvidence('order-id', {
+  description: 'Shipping box was also damaged',
+  urls: ['https://example.com/box-photo.jpg'],
+  type: 'photo',
+});
+
+// Admin resolves
+const resolved = await agora.disputes.resolve('order-id', {
+  resolution: 'partial_refund',
+  refundAmount: 500,
+  notes: 'Item was damaged in transit. Partial refund issued.',
+});
+```
+
+### `agora.negotiations` — Price Negotiations
+
+| Method | Description | Auth |
+|--------|-------------|------|
+| `start(listingId, data)` | Start a negotiation (sends initial offer) | Yes |
+| `list(params?)` | List your negotiations | Yes |
+| `get(id)` | Get full negotiation with messages | Yes |
+| `sendMessage(id, data)` | Send a message (counter, accept, reject, etc.) | Yes |
+
+```typescript
+// Start a negotiation with an offer
+const { negotiation, autoAccepted } = await agora.negotiations.start('listing-id', {
+  amount: 750,
+  currency: 'USDC',
+  message: 'Would you accept $750?',
+});
+
+if (autoAccepted) {
+  console.log('Offer was auto-accepted! Order created.');
+}
+
+// List your active negotiations
+const { negotiations } = await agora.negotiations.list({
+  status: 'active',
+  role: 'buyer',
+});
+
+// Get full negotiation details with all messages
+const detail = await agora.negotiations.get('negotiation-id');
+console.log(detail.messages);
+
+// Send a counter-offer
+const { negotiation: updated, message } = await agora.negotiations.sendMessage(
+  'negotiation-id',
+  {
+    type: 'COUNTER',
+    payload: { amount: 800, message: 'How about $800?' },
+  },
+);
+
+// Accept the current price
+await agora.negotiations.sendMessage('negotiation-id', {
+  type: 'ACCEPT',
+  payload: {},
+});
+```
+
 ### `agora.feedback` — Feature Requests
 
 | Method | Description | Auth |

@@ -101,6 +101,31 @@ export type {
   FeatureRequest,
   FeatureRequestResponse,
   FeatureRequestsResponse,
+  // Disputes
+  DisputeStatus,
+  DisputeResolution,
+  OpenDisputeRequest,
+  SubmitDisputeEvidenceRequest,
+  ResolveDisputeRequest,
+  DisputeEvidence,
+  Dispute,
+  DisputeResponse,
+  DisputeEvidenceResponse,
+  // Negotiations
+  NegotiationStatus,
+  NegotiationMessageType,
+  StartNegotiationRequest,
+  SendNegotiationMessageRequest,
+  ListNegotiationsParams,
+  NegotiationAgentSummary,
+  NegotiationListingSummary,
+  NegotiationMessage,
+  Negotiation,
+  NegotiationDetail,
+  NegotiationResponse,
+  NegotiationDetailResponse,
+  NegotiationsResponse,
+  NegotiationMessageResponse,
 } from './types';
 
 // Resources (for advanced usage / extension)
@@ -113,3 +138,5 @@ export { WalletResource } from './resources/wallet';
 export { WebhooksResource } from './resources/webhooks';
 export { BuyOrdersResource } from './resources/buyOrders';
 export { FeedbackResource } from './resources/feedback';
+export { DisputesResource } from './resources/disputes';
+export { NegotiationsResource } from './resources/negotiations';

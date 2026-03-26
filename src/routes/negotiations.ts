@@ -52,7 +52,7 @@ async function checkAutoAccept(
 ): Promise<boolean> {
   const listing = await prisma.listing.findUnique({
     where: { id: listingId },
-    select: { metadata: true, agentId: true },
+    select: { metadata: true, agentId: true, quantity: true },
   });
 
   if (!listing) return false;
@@ -64,6 +64,80 @@ async function checkAutoAccept(
 
   // If offer meets or exceeds the auto-accept threshold
   if (offeredPrice >= autoAcceptBelow) {
+    // ── Security: Check listing quantity ──────────────────────────
+    // If the listing tracks quantity and it's exhausted, reject the offer
+    if (typeof listing.quantity === 'number' && listing.quantity <= 0) {
+      logger.info('Auto-accept skipped: listing quantity exhausted', {
+        negotiationId,
+        listingId,
+        quantity: listing.quantity,
+      });
+
+      // Auto-reject the offer since inventory is gone
+      const negotiation = await prisma.negotiation.findUnique({
+        where: { id: negotiationId },
+        select: { buyerAgentId: true, sellerAgentId: true },
+      });
+      if (negotiation) {
+        const rejectingAgentId =
+          offeringAgentId === negotiation.buyerAgentId
+            ? negotiation.sellerAgentId
+            : negotiation.buyerAgentId;
+
+        await prisma.negotiationMessage.create({
+          data: {
+            negotiationId,
+            fromAgentId: rejectingAgentId,
+            type: 'REJECT',
+            payload: { autoRejected: true, reason: 'listing_quantity_exhausted' },
+          },
+        });
+        await prisma.negotiation.update({
+          where: { id: negotiationId },
+          data: { status: 'rejected' },
+        });
+      }
+      return false;
+    }
+
+    // ── Security: Daily auto-accept limit ────────────────────────
+    // Prevent a malicious agent from flooding offers below threshold to drain inventory
+    const autoAcceptMaxDaily =
+      typeof metadata?.autoAcceptMaxDaily === 'number'
+        ? metadata.autoAcceptMaxDaily
+        : 10; // default: 10 per day
+
+    // Count auto-accepts today for this listing's seller
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const autoAcceptCountToday = await prisma.negotiationMessage.count({
+      where: {
+        type: 'ACCEPT',
+        payload: {
+          path: ['autoAccepted'],
+          equals: true,
+        },
+        createdAt: { gte: todayStart },
+        negotiation: {
+          listingId,
+          sellerAgentId: listing.agentId,
+        },
+      },
+    });
+
+    if (autoAcceptCountToday >= autoAcceptMaxDaily) {
+      logger.info('Auto-accept skipped: daily limit reached', {
+        negotiationId,
+        listingId,
+        autoAcceptCountToday,
+        autoAcceptMaxDaily,
+      });
+      // Leave the offer pending for human review — do not auto-accept
+      return false;
+    }
+
+    // ── Proceed with auto-accept ─────────────────────────────────
     // Determine who should auto-accept (the party that didn't make the offer)
     const negotiation = await prisma.negotiation.findUnique({
       where: { id: negotiationId },
@@ -100,6 +174,8 @@ async function checkAutoAccept(
       negotiationId,
       offeredPrice,
       autoAcceptBelow,
+      autoAcceptCountToday: autoAcceptCountToday + 1,
+      autoAcceptMaxDaily,
     });
 
     return true;

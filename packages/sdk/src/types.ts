@@ -584,6 +584,164 @@ export interface FeatureRequestsResponse {
   pagination: Pagination;
 }
 
+// ─── Disputes ───────────────────────────────────────────────────
+
+export type DisputeStatus = 'open' | 'evidence_review' | 'resolved';
+export type DisputeResolution = 'full_refund' | 'release_to_seller' | 'partial_refund' | 'split';
+
+export interface OpenDisputeRequest {
+  reason: string;
+  description: string;
+  evidence?: string[];
+}
+
+export interface SubmitDisputeEvidenceRequest {
+  description: string;
+  urls?: string[];
+  type: string;
+}
+
+export interface ResolveDisputeRequest {
+  resolution: DisputeResolution;
+  refundAmount?: number;
+  notes: string;
+}
+
+export interface DisputeEvidence {
+  id: string;
+  disputeId: string;
+  submittedBy: { id: string; name: string } | null;
+  description: string;
+  urls: string[];
+  type: string;
+  createdAt: string;
+}
+
+export interface Dispute {
+  id: string;
+  orderId: string;
+  openedBy: { id: string; name: string } | null;
+  reason: string;
+  description: string;
+  status: DisputeStatus;
+  resolution: DisputeResolution | null;
+  resolvedBy: { id: string; name: string } | null;
+  resolvedAt: string | null;
+  resolutionNotes: string | null;
+  refundAmount: string | null;
+  disputeTxSignature: string | null;
+  resolutionTxSignature: string | null;
+  evidenceDeadline: string | null;
+  flaggedAt: string | null;
+  flagReason: string | null;
+  evidence: DisputeEvidence[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DisputeResponse {
+  dispute: Dispute;
+}
+
+export interface DisputeEvidenceResponse {
+  evidence: DisputeEvidence;
+}
+
+// ─── Negotiations ───────────────────────────────────────────────
+
+export type NegotiationStatus = 'active' | 'accepted' | 'rejected' | 'withdrawn' | 'expired';
+
+export type NegotiationMessageType =
+  | 'OFFER'
+  | 'COUNTER'
+  | 'ACCEPT'
+  | 'REJECT'
+  | 'WITHDRAW'
+  | 'CLARIFY'
+  | 'INSPECT'
+  | 'ESCALATE_TO_HUMAN';
+
+export interface StartNegotiationRequest {
+  amount: number;
+  currency?: string;
+  message?: string;
+  shippingMethod?: string;
+}
+
+export interface SendNegotiationMessageRequest {
+  type: NegotiationMessageType;
+  payload: Record<string, unknown>;
+}
+
+export interface ListNegotiationsParams {
+  status?: string;
+  listingId?: string;
+  role?: 'buyer' | 'seller';
+  page?: number;
+  limit?: number;
+}
+
+export interface NegotiationAgentSummary {
+  id: string;
+  name: string;
+}
+
+export interface NegotiationListingSummary {
+  id: string;
+  title: string;
+  priceUsdc?: string;
+  images?: string[];
+}
+
+export interface NegotiationMessage {
+  id: string;
+  negotiationId: string;
+  fromAgentId: string;
+  fromAgent?: NegotiationAgentSummary;
+  type: NegotiationMessageType;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface Negotiation {
+  id: string;
+  listingId: string;
+  buyerAgentId: string;
+  sellerAgentId: string;
+  status: NegotiationStatus;
+  currentPrice: number | null;
+  listing: NegotiationListingSummary;
+  buyerAgent: NegotiationAgentSummary;
+  sellerAgent: NegotiationAgentSummary;
+  messages?: NegotiationMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NegotiationDetail extends Negotiation {
+  messages: NegotiationMessage[];
+}
+
+export interface NegotiationResponse {
+  negotiation: Negotiation;
+  autoAccepted: boolean;
+}
+
+export interface NegotiationDetailResponse {
+  negotiation: NegotiationDetail;
+}
+
+export interface NegotiationsResponse {
+  negotiations: Negotiation[];
+  pagination: Pagination;
+}
+
+export interface NegotiationMessageResponse {
+  negotiation: Negotiation;
+  message: NegotiationMessage;
+  autoAccepted?: boolean;
+}
+
 // ─── Client Config ──────────────────────────────────────────────
 
 export interface AgoraClientConfig {
