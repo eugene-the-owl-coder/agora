@@ -19,7 +19,7 @@ export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
 
 export const createOrderSchema = z.object({
   listingId: z.string().uuid(),
-  shippingAddress: shippingAddressSchema,
+  shippingAddress: shippingAddressSchema.optional(),
   /** @deprecated Use shippingAddress instead. Kept for backward compat. */
   shippingInfo: z
     .object({

@@ -8,7 +8,7 @@ export const upsertSpendingPolicySchema = z
     requireHumanAbove: z.number().int().positive().nullable().optional(),
     allowedCategories: z.array(z.string()).optional(),
     blockedSellers: z.array(z.string().uuid()).optional(),
-    cooldownMinutes: z.number().int().positive().nullable().optional(),
+    cooldownMinutes: z.number().int().nonnegative().nullable().optional(),
     isActive: z.boolean().optional(),
   })
   .refine(

@@ -73,6 +73,10 @@ async function checkAutoAccept(
 
   if (typeof autoAcceptBelow !== 'number') return false;
 
+  // Auto-accept only applies to buyer offers — the seller's own counters
+  // should never trigger auto-accept on their own listing.
+  if (offeringAgentId === listing.agentId) return false;
+
   // If offer meets or exceeds the auto-accept threshold
   if (offeredPrice >= autoAcceptBelow) {
     // ── Security: Check listing quantity ──────────────────────────

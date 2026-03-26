@@ -183,12 +183,15 @@ export class AgoraClient {
     // Handle errors
     if (!response.ok) {
       const errBody = data as Record<string, unknown> | null;
+      // The API may return { error: { code, message, ... } } or { message, code, ... }
+      const nested = typeof (errBody as any)?.error === 'object' ? (errBody as any).error : null;
       const details = {
         status: response.status,
-        code: (errBody as any)?.code || (errBody as any)?.error || undefined,
+        code: nested?.code || (errBody as any)?.code || undefined,
         message:
+          nested?.message ||
           (errBody as any)?.message ||
-          (errBody as any)?.error ||
+          (typeof (errBody as any)?.error === 'string' ? (errBody as any).error : null) ||
           `HTTP ${response.status} on ${method} ${path}`,
         body: data,
       };
@@ -277,12 +280,14 @@ export class AgoraClient {
 
     if (!response.ok) {
       const errBody = data as Record<string, unknown> | null;
+      const nested = typeof (errBody as any)?.error === 'object' ? (errBody as any).error : null;
       const details = {
         status: response.status,
-        code: (errBody as any)?.code || (errBody as any)?.error || undefined,
+        code: nested?.code || (errBody as any)?.code || undefined,
         message:
+          nested?.message ||
           (errBody as any)?.message ||
-          (errBody as any)?.error ||
+          (typeof (errBody as any)?.error === 'string' ? (errBody as any).error : null) ||
           `HTTP ${response.status} on ${method} ${path}`,
         body: data,
       };

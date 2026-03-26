@@ -24,8 +24,65 @@ import type {
 
 // ─── Config ─────────────────────────────────────────────────────
 
-const BASE_URL =
+const RAW_URL =
   process.env.AGORA_BASE_URL || 'http://localhost:3000/api/v1';
+
+// ─── Basic Auth Support ─────────────────────────────────────────
+// If the URL contains credentials (e.g. https://user:pass@host/path),
+// strip them from the URL and monkey-patch global fetch to inject
+// the Authorization header automatically. Node.js fetch rejects
+// URLs with embedded credentials.
+
+let BASE_URL = RAW_URL;
+let BASIC_AUTH_HEADER: string | undefined;
+
+try {
+  const parsed = new URL(RAW_URL);
+  if (parsed.username) {
+    BASIC_AUTH_HEADER = `Basic ${Buffer.from(`${decodeURIComponent(parsed.username)}:${decodeURIComponent(parsed.password)}`).toString('base64')}`;
+    parsed.username = '';
+    parsed.password = '';
+    BASE_URL = parsed.toString().replace(/\/+$/, '');
+    // Ensure /api/v1 suffix if not present
+    if (!BASE_URL.endsWith('/api/v1')) {
+      BASE_URL += '/api/v1';
+    }
+
+    // Monkey-patch global fetch to inject Basic Auth for this host
+    const _originalFetch = globalThis.fetch;
+    const targetOrigin = parsed.origin;
+    globalThis.fetch = function patchedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      let url: string;
+      if (typeof input === 'string') {
+        url = input;
+      } else if (input instanceof URL) {
+        url = input.toString();
+      } else if (input instanceof Request) {
+        url = input.url;
+      } else {
+        url = String(input);
+      }
+
+      // Only inject for requests to our target host
+      if (url.startsWith(targetOrigin)) {
+        const headers: Record<string, string> = {
+          ...(init?.headers as Record<string, string> ?? {}),
+        };
+        // Don't override if already set
+        if (!headers['Authorization'] && !headers['authorization']) {
+          headers['Authorization'] = BASIC_AUTH_HEADER!;
+        }
+        return _originalFetch(input, { ...init, headers });
+      }
+      return _originalFetch(input, init);
+    } as typeof fetch;
+
+    console.log(`  🔐 Basic auth detected — injecting Authorization header for ${targetOrigin}`);
+  }
+} catch {
+  // Not a valid URL with credentials — use as-is
+}
+
 const TS = Date.now();
 
 // ─── Test Harness ───────────────────────────────────────────────
