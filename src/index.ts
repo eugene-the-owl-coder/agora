@@ -64,21 +64,8 @@ if (!require('fs').existsSync(uploadsDir)) {
 }
 app.use('/uploads', express.static(uploadsDir));
 
-// Serve static files (landing page, docs, feature request UI)
-// Protected by basic auth when SITE_PASSWORD is set
-app.use(basicAuth, express.static(path.join(__dirname, 'public')));
-
-// Request logging
-app.use((req, _res, next) => {
-  logger.info('Request', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
-  });
-  next();
-});
-
 // Health check (enhanced with subsystem status)
+// Keep this ABOVE the authenticated static middleware so Railway probes do not get intercepted.
 app.get('/health', async (_req, res) => {
   const checks: Record<string, unknown> = {
     status: 'ok',
@@ -121,6 +108,20 @@ app.get('/health', async (_req, res) => {
 
   const httpStatus = checks.status === 'ok' ? 200 : 503;
   res.status(httpStatus).json(checks);
+});
+
+// Serve static files (landing page, docs, feature request UI)
+// Protected by basic auth when SITE_PASSWORD is set
+app.use(basicAuth, express.static(path.join(__dirname, 'public')));
+
+// Request logging
+app.use((req, _res, next) => {
+  logger.info('Request', {
+    method: req.method,
+    path: req.path,
+    ip: req.ip,
+  });
+  next();
 });
 
 // Platform info
