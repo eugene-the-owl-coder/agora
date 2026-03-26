@@ -21,6 +21,9 @@
     "escrow"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@prisma/client": "^6.5.0",

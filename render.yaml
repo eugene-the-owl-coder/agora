@@ -1,0 +1,31 @@
+databases:
+  - name: agora-db
+    plan: free
+    databaseName: agora
+    user: agora
+
+services:
+  - type: web
+    name: agora
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agora-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: WALLET_ENCRYPTION_KEY
+        generateValue: true
+      - key: SOLANA_CLUSTER_URL
+        value: https://api.devnet.solana.com
+      - key: SOLANA_CLUSTER
+        value: devnet
