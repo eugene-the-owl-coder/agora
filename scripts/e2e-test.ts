@@ -468,6 +468,334 @@ async function main(): Promise<void> {
     skipStep(18, 'Resolve dispute', 'no dispute');
   }
 
+  // ════════════════════════════════════════════════════════════
+  // TRUST FRAMEWORK TESTS (Steps 19–25)
+  // ════════════════════════════════════════════════════════════
+
+  // Helper: raw fetch with API key auth (SDK may not have trust endpoints)
+  async function apiFetch(
+    apiKey: string,
+    path: string,
+    options: RequestInit = {},
+  ): Promise<Response> {
+    const url = `${BASE_URL}${path}`;
+    return fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        ...(options.headers as Record<string, string> ?? {}),
+      },
+    });
+  }
+
+  // Helper: fetch that tolerates 404 (endpoint not deployed) → returns null
+  async function apiFetchOrSkip(
+    apiKey: string,
+    path: string,
+    stepNum: number,
+    stepName: string,
+  ): Promise<any | null> {
+    const res = await apiFetch(apiKey, path);
+    if (res.status === 404) {
+      skipStep(stepNum, stepName, 'endpoint not deployed (404)');
+      return null;
+    }
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status} ${res.statusText}: ${body}`);
+    }
+    return res.json();
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Step 19: Check buyer's trust tier — new agents start at Tier 0
+  // ────────────────────────────────────────────────────────────
+
+  let buyerTierData: any = null;
+
+  if (buyerApiKey) {
+    buyerTierData = await runStep(19, 'Check buyer trust tier (should be Tier 0)', async () => {
+      const data = await apiFetchOrSkip(buyerApiKey!, '/agents/me/tier', 19, 'Check buyer trust tier');
+      if (data === null) return null; // skipped
+
+      const tier = data.tier;
+      if (tier.tier !== 0) {
+        throw new Error(`Expected tier 0 for new agent, got tier ${tier.tier}`);
+      }
+      if (tier.tierName !== 'new') {
+        throw new Error(`Expected tierName "new", got "${tier.tierName}"`);
+      }
+      console.log(`         → tier: ${tier.tier} (${tier.tierName})`);
+      console.log(`         → cleared transactions: ${tier.clearedTransactions}`);
+      console.log(`         → unique counterparties: ${tier.uniqueCounterparties}`);
+      console.log(`         → max price: $${(tier.maxPriceUsdc / 100).toFixed(2)}`);
+      console.log(`         → collateral ratio: ${Math.round(tier.collateralRatio * 100)}%`);
+      return data;
+    });
+  } else {
+    skipStep(19, 'Check buyer trust tier', 'no buyer API key');
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Step 20: Check collateral requirements for Tier 0 (200%)
+  // ────────────────────────────────────────────────────────────
+
+  await runStep(20, 'Collateral estimate for Tier 0 (expect 200%)', async () => {
+    const testPrice = 10000; // $100 in USDC cents
+    const res = await fetch(`${BASE_URL}/collateral/estimate?priceUsdc=${testPrice}`);
+    if (res.status === 404) {
+      skipStep(20, 'Collateral estimate', 'endpoint not deployed (404)');
+      return null;
+    }
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status} ${res.statusText}: ${body}`);
+    }
+
+    const data = await res.json();
+    const estimate = data.estimate;
+
+    // The "maximum" scenario (both Tier 0) should have 200% ratio
+    if (estimate.maximum.collateralRatio !== 2.0) {
+      throw new Error(`Expected max collateral ratio 2.0 (200%), got ${estimate.maximum.collateralRatio}`);
+    }
+    // Buyer collateral for both-Tier-0 should be 2× the price
+    if (estimate.maximum.buyerCollateralUsdc !== testPrice * 2) {
+      throw new Error(
+        `Expected buyer collateral ${testPrice * 2} for 200%, got ${estimate.maximum.buyerCollateralUsdc}`,
+      );
+    }
+
+    console.log(`         → price: $${(estimate.price / 100).toFixed(2)}`);
+    console.log(`         → max ratio (Tier 0): ${Math.round(estimate.maximum.collateralRatio * 100)}%`);
+    console.log(`         → max buyer collateral: $${(estimate.maximum.buyerCollateralUsdc / 100).toFixed(2)}`);
+    console.log(`         → min ratio (Tier 4): ${Math.round(estimate.minimum.collateralRatio * 100)}%`);
+    console.log(`         → tier combos: ${estimate.tiers.length}`);
+    for (const t of estimate.tiers) {
+      console.log(`           • ${t.tierCombo}: ${Math.round(t.ratio * 100)}% → buyer total $${(t.buyerTotalCost / 100).toFixed(2)}`);
+    }
+    return data;
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Step 21: Verify tier price cap enforcement — Tier 0 max is $150
+  // ────────────────────────────────────────────────────────────
+
+  if (sellerApiKey) {
+    await runStep(21, 'Tier price cap enforcement (Tier 0 → $150 max)', async () => {
+      // Attempt to create a listing at $200 (20000 USDC cents) — should fail for Tier 0 ($150 = 15000 cap)
+      const res = await apiFetch(sellerApiKey!, '/listings', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: `E2E Over-Cap Widget ${TS}`,
+          description: 'This listing exceeds Tier 0 price cap and should be rejected.',
+          priceUsdc: 20000, // $200 — above $150 Tier 0 cap
+          category: 'electronics',
+          condition: 'new',
+          quantity: 1,
+        }),
+      });
+
+      if (res.status === 404) {
+        skipStep(21, 'Tier price cap enforcement', 'endpoint not deployed (404)');
+        return null;
+      }
+
+      // Expect a 4xx rejection (likely 403 or 400)
+      if (res.ok) {
+        // Clean up the accidentally-created listing
+        const created = await res.json();
+        console.log(`         ⚠️ Listing was created (id: ${created.id}) — price cap NOT enforced!`);
+        throw new Error(
+          `Listing at $200 should have been rejected for Tier 0 agent (cap $150), but was created`,
+        );
+      }
+
+      const body = await res.json().catch(() => ({ message: res.statusText }));
+      console.log(`         → correctly rejected: ${res.status}`);
+      console.log(`         → reason: ${body.message || body.error || JSON.stringify(body)}`);
+      return { status: res.status, body };
+    });
+  } else {
+    skipStep(21, 'Tier price cap enforcement', 'no seller API key');
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Step 22: Check enriched /me endpoint (trust tier, ratings, reputation)
+  // ────────────────────────────────────────────────────────────
+
+  if (buyerApiKey) {
+    // Pre-check: is the enriched /me deployed? If not, skip cleanly.
+    const meRes = await fetch(`${BASE_URL}/auth/me`, {
+      headers: { 'x-api-key': buyerApiKey! },
+    });
+
+    if (meRes.status === 404) {
+      skipStep(22, 'Enriched /me endpoint (tier + ratings + reputation)', 'endpoint not deployed (404)');
+    } else if (meRes.ok) {
+      const meData = await meRes.json();
+      const hasTrustTier = meData.trustTier !== undefined;
+      const hasRatings = meData.ratings !== undefined;
+      const hasReputation = meData.reputation !== undefined;
+
+      if (!hasTrustTier && !hasRatings && !hasReputation && meData.agent) {
+        // Old /me without enrichment — skip gracefully
+        skipStep(22, 'Enriched /me endpoint (tier + ratings + reputation)', 'enrichment not deployed (old /me)');
+      } else {
+        await runStep(22, 'Enriched /me endpoint (tier + ratings + reputation)', async () => {
+          const hasAgent = !!meData.agent;
+          const hasStats = meData.stats !== undefined;
+
+          console.log(`         → agent: ${hasAgent ? '✓' : '✗'} (id: ${meData.agent?.id})`);
+          console.log(`         → trustTier: ${hasTrustTier ? '✓' : '✗'} (tier ${meData.trustTier?.tier ?? 'N/A'})`);
+          console.log(`         → ratings: ${hasRatings ? '✓' : '✗'}`);
+          console.log(`         → reputation: ${hasReputation ? '✓' : '✗'}`);
+          console.log(`         → stats: ${hasStats ? '✓' : '✗'}`);
+
+          if (!hasAgent) throw new Error('Missing agent data in /me response');
+          if (!hasTrustTier) throw new Error('Missing trustTier key in /me response');
+          if (!hasRatings) throw new Error('Missing ratings key in /me response');
+
+          // Validate enrichment content
+          if (meData.trustTier !== null && meData.trustTier.tier !== 0) {
+            throw new Error(`Expected tier 0 for new agent in /me, got ${meData.trustTier.tier}`);
+          }
+
+          return meData;
+        });
+      }
+    } else {
+      await runStep(22, 'Enriched /me endpoint (tier + ratings + reputation)', async () => {
+        throw new Error(`/auth/me returned ${meRes.status}: ${await meRes.text()}`);
+      });
+    }
+  } else {
+    skipStep(22, 'Enriched /me endpoint (tier + ratings + reputation)', 'no buyer API key');
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Step 23: Buyer & seller ratings initialized (null for new agents)
+  // ────────────────────────────────────────────────────────────
+
+  if (buyerApiKey && sellerApiKey) {
+    await runStep(23, 'Ratings initialized (null for new agents)', async () => {
+      const buyerData = await apiFetchOrSkip(buyerApiKey!, '/agents/me/ratings', 23, 'Ratings check');
+      if (buyerData === null) return null;
+
+      const br = buyerData.ratings;
+      const sellerData = await apiFetchOrSkip(sellerApiKey!, '/agents/me/ratings', 23, 'Ratings check');
+      if (sellerData === null) return null;
+
+      const sr = sellerData.ratings;
+
+      console.log(`         → buyer  : buyerRating=${br.buyerRating}, sellerRating=${br.sellerRating}, txCounts=${br.buyerTxCount}/${br.sellerTxCount}`);
+      console.log(`         → seller : buyerRating=${sr.buyerRating}, sellerRating=${sr.sellerRating}, txCounts=${sr.buyerTxCount}/${sr.sellerTxCount}`);
+
+      // New agents should have null ratings (no transactions completed yet)
+      if (br.buyerRating !== null) {
+        throw new Error(`New buyer agent should have null buyerRating, got ${br.buyerRating}`);
+      }
+      if (sr.sellerRating !== null) {
+        throw new Error(`New seller agent should have null sellerRating, got ${sr.sellerRating}`);
+      }
+      if (br.buyerTxCount !== 0) {
+        throw new Error(`New buyer should have 0 buyerTxCount, got ${br.buyerTxCount}`);
+      }
+      if (sr.sellerTxCount !== 0) {
+        throw new Error(`New seller should have 0 sellerTxCount, got ${sr.sellerTxCount}`);
+      }
+
+      return { buyer: br, seller: sr };
+    });
+  } else {
+    skipStep(23, 'Ratings initialized', 'missing API key(s)');
+  }
+
+  // ────────────────────────────────────────────────────────────
+  // Step 24: Verify tier table reference (public endpoint)
+  // ────────────────────────────────────────────────────────────
+
+  await runStep(24, 'Tier table reference (public endpoint)', async () => {
+    const res = await fetch(`${BASE_URL}/tiers`);
+    if (res.status === 404) {
+      skipStep(24, 'Tier table reference', 'endpoint not deployed (404)');
+      return null;
+    }
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status}: ${body}`);
+    }
+
+    const data = await res.json();
+    const tiers = data.tiers;
+
+    if (!Array.isArray(tiers) || tiers.length !== 5) {
+      throw new Error(`Expected 5 tiers, got ${tiers?.length}`);
+    }
+
+    // Verify tier 0 defaults
+    const t0 = tiers.find((t: any) => t.tier === 0);
+    if (!t0) throw new Error('Tier 0 not found in tier table');
+    if (t0.collateralRatio !== 2.0) throw new Error(`Tier 0 collateral ratio expected 2.0, got ${t0.collateralRatio}`);
+    if (t0.maxPriceUsdc !== 15000) throw new Error(`Tier 0 max price expected 15000, got ${t0.maxPriceUsdc}`);
+
+    console.log(`         → ${tiers.length} tiers returned`);
+    for (const t of tiers) {
+      console.log(`           • Tier ${t.tier} (${t.name}): max ${t.maxPriceFormatted}, collateral ${t.collateralPercent}, listings ${t.maxActiveListings}`);
+    }
+
+    if (data.explanation) {
+      console.log(`         → explanation: ${data.explanation.summary.slice(0, 80)}...`);
+    }
+
+    return data;
+  });
+
+  // ────────────────────────────────────────────────────────────
+  // Step 25: Collateral distribution info (dispute resolution math)
+  // ────────────────────────────────────────────────────────────
+
+  await runStep(25, 'Collateral distribution scenarios', async () => {
+    // Test multiple price points to verify the estimate endpoint returns correct tier combos
+    const prices = [5000, 15000, 50000]; // $50, $150, $500
+    for (const price of prices) {
+      const res = await fetch(`${BASE_URL}/collateral/estimate?priceUsdc=${price}`);
+      if (res.status === 404) {
+        skipStep(25, 'Collateral distribution scenarios', 'endpoint not deployed (404)');
+        return null;
+      }
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`${res.status} for price ${price}: ${body}`);
+      }
+
+      const data = await res.json();
+      const est = data.estimate;
+
+      // Verify basic math: buyer total cost = price + buyer collateral
+      for (const t of est.tiers) {
+        const expectedBuyerTotal = price + t.buyerCollateral;
+        if (t.buyerTotalCost !== expectedBuyerTotal) {
+          throw new Error(
+            `Math mismatch for ${t.tierCombo}: buyerTotalCost ${t.buyerTotalCost} !== price ${price} + collateral ${t.buyerCollateral}`,
+          );
+        }
+      }
+
+      // Verify min ≤ max collateral
+      if (est.minimum.collateralRatio > est.maximum.collateralRatio) {
+        throw new Error(
+          `Min collateral ratio (${est.minimum.collateralRatio}) > max (${est.maximum.collateralRatio})`,
+        );
+      }
+
+      console.log(`         → $${(price / 100).toFixed(2)}: min ${Math.round(est.minimum.collateralRatio * 100)}% / max ${Math.round(est.maximum.collateralRatio * 100)}% — ✓`);
+    }
+
+    return { pricesTested: prices.length };
+  });
+
   // ────────────────────────────────────────────────────────────
   // Summary
   // ────────────────────────────────────────────────────────────
