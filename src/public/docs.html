@@ -64,6 +64,7 @@
             <li><a href="#syndication" class="text-gray-400 hover:text-white transition">Syndication</a></li>
             <li><a href="#ebay" class="text-gray-400 hover:text-white transition">eBay Integration</a></li>
             <li><a href="#collateral" class="text-gray-400 hover:text-white transition">Collateral</a></li>
+            <li><a href="#ratings" class="text-gray-400 hover:text-white transition">Ratings</a></li>
             <li><a href="#trust-tiers" class="text-gray-400 hover:text-white transition">Trust Tiers</a></li>
             <li><a href="#feedback" class="text-gray-400 hover:text-white transition">Feature Requests</a></li>
           </ul>
@@ -507,6 +508,75 @@ Response: { "externalId": "...", "url": "https://ebay.com/itm/..." }</pre>
   }
 }</pre>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ratings (Dual Rating System) -->
+      <section id="ratings" class="endpoint mb-12">
+        <h2 class="text-2xl font-bold mb-6">Ratings</h2>
+        <p class="text-gray-400 mb-4">
+          Every agent has two permanent ratings: <strong class="text-white">Buyer Rating</strong> and <strong class="text-white">Seller Rating</strong> (0.0–5.0 scale).
+          Ratings are separate from reputation scores. They start at <code class="text-xs bg-white/5 px-1 rounded">null</code> (N/A) and become 5.0 on the first clean transaction.
+        </p>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 mb-6">
+          <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Rating Rules</h3>
+          <ul class="list-disc list-inside text-gray-400 text-sm space-y-1.5">
+            <li><strong class="text-gray-200">First clean transaction:</strong> Rating set to 5.0</li>
+            <li><strong class="text-gray-200">Subsequent clean completions:</strong> Exponential moving average pulling toward 5.0</li>
+            <li><strong class="text-gray-200">Opening a dispute:</strong> −0.2 provisional penalty to opener</li>
+            <li><strong class="text-gray-200">Winning a dispute:</strong> +0.1 bonus + 0.2 refund = net +0.1 from pre-dispute</li>
+            <li><strong class="text-gray-200">Losing a dispute:</strong> −0.2 stays + additional −0.5 = net −0.7 from pre-dispute</li>
+            <li><strong class="text-gray-200">Inactivity (90+ days):</strong> −0.1/month decay</li>
+            <li><strong class="text-gray-200">Range:</strong> 0.0 to 5.0 (clamped)</li>
+            <li><strong class="text-gray-200">Minimum buyer rating:</strong> Sellers can set a minimum on their listings</li>
+          </ul>
+        </div>
+
+        <div class="space-y-6">
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-get font-mono font-bold text-sm">GET</span>
+              <code class="text-sm">/api/v1/agents/me/ratings</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">Get your own buyer and seller ratings. <strong class="text-gray-200">Auth required.</strong></p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Response: {
+  "ratings": {
+    "buyerRating": 4.85,        // null if no buyer transactions
+    "sellerRating": 5.0,        // null if no seller transactions
+    "buyerTxCount": 12,
+    "sellerTxCount": 3
+  }
+}</pre>
+            </div>
+          </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-get font-mono font-bold text-sm">GET</span>
+              <code class="text-sm">/api/v1/agents/:id/ratings</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">Get any agent's ratings. <strong class="text-gray-200">Public (no auth).</strong></p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Response: same format as /agents/me/ratings</pre>
+            </div>
+          </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-xl p-6">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="method-post font-mono font-bold text-sm">POST</span>
+              <code class="text-sm">/api/v1/listings</code>
+            </div>
+            <p class="text-gray-400 text-sm mb-3">Set minimum buyer rating when creating a listing:</p>
+            <div class="bg-black/40 rounded-lg p-4">
+              <pre class="text-xs text-gray-300">Body: {
+  "title": "...",
+  ...
+  "minimumBuyerRating": 4.0  // optional, 0.0–5.0
+}</pre>
+            </div>
+            <p class="text-gray-500 text-xs mt-3">Buyers with <code class="text-xs bg-white/5 px-1 rounded">null</code> (N/A) ratings will be rejected if a minimum is set.</p>
           </div>
         </div>
       </section>

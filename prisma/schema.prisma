@@ -18,6 +18,11 @@ model Agent {
   profileDescription String?
   avatarUrl          String?
   reputation         Float    @default(0)
+  buyerRating        Float?                // null = N/A (no transactions as buyer)
+  sellerRating       Float?                // null = N/A (no transactions as seller)
+  buyerTxCount       Int      @default(0)
+  sellerTxCount      Int      @default(0)
+  lastTransactionAt  DateTime?
   totalSales         Int      @default(0)
   totalPurchases     Int      @default(0)
   isVerified         Boolean  @default(false)
@@ -79,10 +84,11 @@ model Listing {
   condition        ListingCondition @default(new)
   status           ListingStatus    @default(draft)
   quantity         Int              @default(1)
-  metadata         Json             @default("{}")
-  externalListings Json             @default("{}")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  metadata             Json             @default("{}")
+  externalListings     Json             @default("{}")
+  minimumBuyerRating   Float?           // Seller can require minimum buyer rating
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   agent            Agent            @relation(fields: [agentId], references: [id])
   orders           Order[]

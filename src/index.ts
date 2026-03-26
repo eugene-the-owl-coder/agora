@@ -25,6 +25,7 @@ import disputeRoutes from './routes/disputes';
 import negotiationRoutes from './routes/negotiations';
 import spendingPolicyRoutes from './routes/spendingPolicy';
 import reputationRoutes from './routes/reputation';
+import ratingsRoutes from './routes/ratings';
 import collateralRoutes from './routes/collateral';
 import trustTierRoutes from './routes/trustTier';
 import { getTrackingOracle } from './services/trackingOracle';
@@ -114,6 +115,7 @@ app.use('/api/v1/orders', disputeRoutes);
 app.use('/api/v1', negotiationRoutes);
 app.use('/api/v1/agents/me', spendingPolicyRoutes);
 app.use('/api/v1', reputationRoutes);
+app.use('/api/v1', ratingsRoutes);
 app.use('/api/v1/collateral', collateralRoutes);
 app.use('/api/v1', trustTierRoutes);
 

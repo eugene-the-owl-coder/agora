@@ -11,6 +11,7 @@ export const createListingSchema = z.object({
   status: z.enum(['draft', 'active']).default('active'),
   quantity: z.number().int().positive().default(1),
   metadata: z.record(z.unknown()).default({}),
+  minimumBuyerRating: z.coerce.number().min(0).max(5).optional(),
 });
 
 export const updateListingSchema = z.object({
@@ -24,6 +25,7 @@ export const updateListingSchema = z.object({
   status: z.enum(['draft', 'active']).optional(),
   quantity: z.number().int().positive().optional(),
   metadata: z.record(z.unknown()).optional(),
+  minimumBuyerRating: z.coerce.number().min(0).max(5).nullable().optional(),
 });
 
 export const searchListingsSchema = z.object({

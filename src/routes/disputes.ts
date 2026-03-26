@@ -18,6 +18,7 @@ import { openDisputeSchema, submitEvidenceSchema, resolveDisputeSchema } from '.
 import { openDisputeOnChain, refundEscrow, releaseEscrow } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
 import { calculateDisputeDistribution } from '../services/collateral';
+import { recordDisputeOpened, recordDisputeOutcome } from '../services/rating';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -178,6 +179,10 @@ router.post(
         reason: data.reason,
         openedBy: req.agent!.id,
       });
+
+      // Apply provisional rating penalty to opener
+      const openerRole = isBuyer ? 'buyer' : 'seller';
+      await recordDisputeOpened(req.agent!.id, openerRole as 'buyer' | 'seller');
 
       // Reload with evidence if initial evidence was added
       const fullDispute = await prisma.dispute.findUnique({
@@ -450,6 +455,32 @@ router.post(
 
         return resolved;
       });
+
+      // Update ratings based on dispute outcome
+      // Determine winner/loser from resolution type
+      const disputeOpenerId = order.dispute!.openedById;
+      const openerIsBuyer = disputeOpenerId === order.buyerAgentId;
+      const disputeOpenerRole: 'buyer' | 'seller' = openerIsBuyer ? 'buyer' : 'seller';
+
+      if (data.resolution === 'full_refund') {
+        // Buyer wins (got refund) — seller loses
+        await recordDisputeOutcome({
+          openerId: disputeOpenerId,
+          winnerId: order.buyerAgentId,
+          loserId: order.sellerAgentId,
+          openerRole: disputeOpenerRole,
+        });
+      } else if (data.resolution === 'release_to_seller') {
+        // Seller wins — buyer loses
+        await recordDisputeOutcome({
+          openerId: disputeOpenerId,
+          winnerId: order.sellerAgentId,
+          loserId: order.buyerAgentId,
+          openerRole: disputeOpenerRole,
+        });
+      }
+      // For partial_refund and split, we don't declare a clear winner/loser.
+      // The provisional penalty stands for the opener; no further adjustments.
 
       dispatchWebhook('order.disputed', {
         orderId: id,

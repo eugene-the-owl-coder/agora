@@ -9,6 +9,7 @@ import { dispatchWebhook } from '../services/webhook';
 import { runMatchingEngine } from '../services/matching';
 import { logger } from '../utils/logger';
 import { getReputationSummary } from '../services/reputation';
+import { getAgentRatings } from '../services/rating';
 import { validateListingPrice, validateActiveListings, getAgentTier as getTrustTierInfo } from '../services/trustTier';
 
 const router = Router();
@@ -46,6 +47,7 @@ router.post('/', authenticate, requireScope('list'), async (req: Request, res: R
         status: data.status,
         quantity: data.quantity,
         metadata: data.metadata as Prisma.InputJsonValue,
+        minimumBuyerRating: data.minimumBuyerRating ?? null,
       },
       include: {
         agent: { select: { id: true, name: true, reputation: true } },
@@ -138,15 +140,21 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       prisma.listing.count({ where }),
     ]);
 
-    // Enrich with seller reputation summaries
+    // Enrich with seller reputation summaries and ratings
     const sellerIds = [...new Set(listings.map((l) => l.agentId))];
     const reputationMap = new Map<string, Awaited<ReturnType<typeof getReputationSummary>>>();
+    const ratingsMap = new Map<string, Awaited<ReturnType<typeof getAgentRatings>>>();
     await Promise.all(
       sellerIds.map(async (sid) => {
         try {
           reputationMap.set(sid, await getReputationSummary(sid));
         } catch {
           // If reputation computation fails, skip it
+        }
+        try {
+          ratingsMap.set(sid, await getAgentRatings(sid));
+        } catch {
+          // If ratings fetch fails, skip it
         }
       }),
     );
@@ -155,6 +163,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       listings: listings.map((l) => ({
         ...serializeListing(l),
         sellerReputation: reputationMap.get(l.agentId) ?? null,
+        sellerRatings: ratingsMap.get(l.agentId) ?? null,
       })),
       pagination: {
         page: params.page,
@@ -195,13 +204,19 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     let sellerReputation = null;
+    let sellerRatings = null;
     try {
       sellerReputation = await getReputationSummary(listing.agentId);
     } catch {
       // Non-fatal — reputation is additive
     }
+    try {
+      sellerRatings = await getAgentRatings(listing.agentId);
+    } catch {
+      // Non-fatal
+    }
 
-    res.json({ listing: { ...serializeListing(listing), sellerReputation } });
+    res.json({ listing: { ...serializeListing(listing), sellerReputation, sellerRatings } });
   } catch (err) {
     next(err);
   }
@@ -232,6 +247,7 @@ router.put('/:id', authenticate, requireScope('list'), async (req: Request, res:
     const updateData: any = { ...data };
     if (data.priceUsdc !== undefined) updateData.priceUsdc = BigInt(data.priceUsdc);
     if (data.priceSol !== undefined) updateData.priceSol = data.priceSol ? BigInt(data.priceSol) : null;
+    if (data.minimumBuyerRating !== undefined) updateData.minimumBuyerRating = data.minimumBuyerRating;
 
     const updated = await prisma.listing.update({
       where: { id },

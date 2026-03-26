@@ -8,6 +8,8 @@ import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
 import { validatePurchase } from '../services/spendingPolicy';
+import { recordCleanTransaction } from '../services/rating';
+import { meetsMinimumRating, getAgentRatings } from '../services/rating';
 import {
   calculateCollateral,
   validateCollateral,
@@ -44,6 +46,25 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
 
     if (listing.quantity < 1) {
       throw new AppError('OUT_OF_STOCK', 'This listing is out of stock', 400);
+    }
+
+    // Check minimum buyer rating if seller set one
+    if (listing.minimumBuyerRating !== null && listing.minimumBuyerRating !== undefined) {
+      const buyerRatings = await getAgentRatings(req.agent!.id);
+      if (!meetsMinimumRating(buyerRatings.buyerRating, listing.minimumBuyerRating)) {
+        const ratingDisplay = buyerRatings.buyerRating === null
+          ? 'N/A (no completed purchases yet)'
+          : buyerRatings.buyerRating.toFixed(1);
+        throw new AppError(
+          'BUYER_RATING_TOO_LOW',
+          `This seller requires a minimum buyer rating of ${listing.minimumBuyerRating.toFixed(1)}★. ` +
+          `Your buyer rating is ${ratingDisplay}. ` +
+          (buyerRatings.buyerRating === null
+            ? 'Complete purchases on other listings to build your buyer rating.'
+            : 'Improve your rating by completing more transactions without disputes.'),
+          403,
+        );
+      }
     }
 
     // Validate wallet presence before escrow
@@ -451,6 +472,12 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
         status: 'sold',
       },
     });
+
+    // Update buyer and seller ratings (clean transaction)
+    await Promise.all([
+      recordCleanTransaction(order.buyerAgentId, 'buyer'),
+      recordCleanTransaction(order.sellerAgentId, 'seller'),
+    ]);
 
     dispatchWebhook('order.completed', { orderId: id }).catch(() => {});
     dispatchWebhook('listing.sold', { listingId: order.listingId, orderId: id }).catch(() => {});

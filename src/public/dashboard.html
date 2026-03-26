@@ -152,7 +152,7 @@
       </div>
 
       <!-- Stats Row -->
-      <div id="stats-row" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div id="stats-row" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
           <div class="text-2xl font-bold text-emerald-400" id="stat-purchases">—</div>
           <div class="text-xs text-gray-500 mt-1">Purchases</div>
@@ -168,6 +168,22 @@
         <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
           <div class="text-2xl font-bold text-cyan-400" id="stat-reputation">—</div>
           <div class="text-xs text-gray-500 mt-1">Reputation</div>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+          <div class="flex items-center justify-center gap-1">
+            <span class="text-amber-400 text-sm">★</span>
+            <span class="text-2xl font-bold text-amber-400" id="stat-buyer-rating">N/A</span>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">Buyer Rating</div>
+          <div class="text-xs text-gray-600" id="stat-buyer-tx-count"></div>
+        </div>
+        <div class="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+          <div class="flex items-center justify-center gap-1">
+            <span class="text-amber-400 text-sm">★</span>
+            <span class="text-2xl font-bold text-amber-400" id="stat-seller-rating">N/A</span>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">Seller Rating</div>
+          <div class="text-xs text-gray-600" id="stat-seller-tx-count"></div>
         </div>
       </div>
 
@@ -747,6 +763,26 @@
         document.getElementById('stat-active').textContent = data.pagination?.total ?? myListings.filter(l => l.status === 'active').length;
       } catch {
         document.getElementById('stat-active').textContent = myListings.filter(l => l.status === 'active').length;
+      }
+
+      // Load ratings
+      try {
+        const ratingsRes = await fetch(`${API_BASE}/agents/me/ratings`, { headers: authHeaders() });
+        if (ratingsRes.ok) {
+          const ratingsData = await ratingsRes.json();
+          const r = ratingsData.ratings;
+
+          document.getElementById('stat-buyer-rating').textContent =
+            r.buyerRating !== null ? r.buyerRating.toFixed(1) : 'N/A';
+          document.getElementById('stat-seller-rating').textContent =
+            r.sellerRating !== null ? r.sellerRating.toFixed(1) : 'N/A';
+          document.getElementById('stat-buyer-tx-count').textContent =
+            r.buyerTxCount > 0 ? `${r.buyerTxCount} tx` : '';
+          document.getElementById('stat-seller-tx-count').textContent =
+            r.sellerTxCount > 0 ? `${r.sellerTxCount} tx` : '';
+        }
+      } catch {
+        // Non-fatal
       }
     }
 

@@ -281,11 +281,25 @@
         shippingHtml = `<span class="text-xs text-gray-500 flex items-center gap-1">${icon} ${cost ? cost + ' shipping' : 'Shipping available'}</span>`;
       }
 
-      // Seller reputation
-      const rep = l.agent?.reputation;
+      // Seller rating (dual rating system — prefer sellerRating over reputation)
+      const sellerRatings = l.sellerRatings;
       let repHtml = '';
-      if (rep !== null && rep !== undefined && parseFloat(rep) > 0) {
-        repHtml = `<span class="text-xs text-amber-400/80">★ ${parseFloat(rep).toFixed(1)}</span>`;
+      if (sellerRatings && sellerRatings.sellerRating !== null) {
+        repHtml = `<span class="text-xs text-amber-400/80">★ ${sellerRatings.sellerRating.toFixed(1)}</span>`;
+        if (sellerRatings.sellerTxCount > 0) {
+          repHtml += `<span class="text-xs text-gray-600">(${sellerRatings.sellerTxCount} sales)</span>`;
+        }
+      } else {
+        const rep = l.agent?.reputation;
+        if (rep !== null && rep !== undefined && parseFloat(rep) > 0) {
+          repHtml = `<span class="text-xs text-amber-400/80">★ ${parseFloat(rep).toFixed(1)}</span>`;
+        }
+      }
+
+      // Minimum buyer rating badge
+      let minRatingHtml = '';
+      if (l.minimumBuyerRating !== null && l.minimumBuyerRating !== undefined) {
+        minRatingHtml = `<span class="text-xs text-orange-400/70" title="Requires buyer rating ≥ ${l.minimumBuyerRating}">🔒 ${l.minimumBuyerRating.toFixed(1)}★ min</span>`;
       }
 
       // Seller trust tier badge
@@ -318,7 +332,7 @@
           </div>
           <div class="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-white/5 mb-3">
             <span class="flex items-center gap-2">by <span class="text-gray-400">${escapeHtml(l.agent?.name || 'Anonymous')}</span>${tierBadgeHtml}${repHtml}</span>
-            <span>${date}</span>
+            <span class="flex items-center gap-2">${minRatingHtml}${date}</span>
           </div>
           ${AgoraWallet.getWalletAddress()
             ? `<a href="/buy.html?listing=${l.id}" onclick="event.stopPropagation()"
