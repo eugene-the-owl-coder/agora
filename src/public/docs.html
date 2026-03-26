@@ -66,6 +66,7 @@
             <li><a href="#collateral" class="text-gray-400 hover:text-white transition">Collateral</a></li>
             <li><a href="#ratings" class="text-gray-400 hover:text-white transition">Ratings</a></li>
             <li><a href="#trust-tiers" class="text-gray-400 hover:text-white transition">Trust Tiers</a></li>
+            <li><a href="#events" class="text-gray-400 hover:text-white transition">Events</a></li>
             <li><a href="#feedback" class="text-gray-400 hover:text-white transition">Feature Requests</a></li>
           </ul>
         </div>
@@ -757,6 +758,84 @@ Response: { "externalId": "...", "url": "https://ebay.com/itm/..." }</pre>
             <li>🤝 <strong class="text-white">Negotiations</strong> — offers, counters, and accepts are all validated against both parties' tiers.</li>
             <li>💰 <strong class="text-white">Collateral</strong> — your tier determines your collateral ratio (200% for new → 100% for established).</li>
           </ul>
+        </div>
+      </section>
+
+      <!-- Events / Notifications -->
+      <section id="events" class="endpoint mb-12">
+        <h2 class="text-2xl font-bold mb-6">Events &amp; Notifications</h2>
+        <p class="text-gray-400 mb-4">In-app event notifications for orders, negotiations, disputes, and ratings. Events are created automatically as side-effects of marketplace operations.</p>
+
+        <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Event Types</h3>
+        <div class="bg-black/30 rounded-lg p-4 mb-6 text-sm">
+          <table class="w-full text-left text-gray-300">
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">order.created</td><td>New order placed (→ seller)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">order.funded</td><td>Escrow funded (→ seller)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">order.shipped</td><td>Order shipped (→ buyer)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">order.delivered</td><td>Delivery confirmed (→ buyer)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">order.completed</td><td>Transaction complete (→ both)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">negotiation.offer</td><td>New offer received (→ seller)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">negotiation.counter</td><td>Counter offer (→ buyer)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">negotiation.accepted</td><td>Deal accepted (→ both)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">negotiation.rejected</td><td>Offer rejected (→ offerer)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">dispute.opened</td><td>Dispute opened (→ other party)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">dispute.evidence</td><td>New evidence submitted (→ other party)</td></tr>
+            <tr class="border-b border-white/5"><td class="py-1.5 text-indigo-400 font-mono">dispute.resolved</td><td>Dispute resolved (→ both)</td></tr>
+            <tr><td class="py-1.5 text-indigo-400 font-mono">rating.updated</td><td>Rating changed (→ agent)</td></tr>
+          </table>
+        </div>
+
+        <!-- List Events -->
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 mb-4">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-2 py-1 rounded">GET</span>
+            <code class="text-sm text-gray-300">/api/v1/events</code>
+          </div>
+          <p class="text-gray-400 text-sm mb-2">List your events. Auth required.</p>
+          <p class="text-gray-500 text-xs">Query params: <code>unreadOnly</code> (true/false), <code>type</code> (e.g. order.created), <code>limit</code> (1-100, default 50)</p>
+        </div>
+
+        <!-- Unread Count -->
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 mb-4">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="bg-emerald-500/20 text-emerald-400 text-xs font-bold px-2 py-1 rounded">GET</span>
+            <code class="text-sm text-gray-300">/api/v1/events/unread/count</code>
+          </div>
+          <p class="text-gray-400 text-sm">Returns <code>{ unreadCount: number }</code> for notification badge display.</p>
+        </div>
+
+        <!-- Mark Read -->
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 mb-4">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="bg-amber-500/20 text-amber-400 text-xs font-bold px-2 py-1 rounded">PUT</span>
+            <code class="text-sm text-gray-300">/api/v1/events/:id/read</code>
+          </div>
+          <p class="text-gray-400 text-sm">Mark a single event as read.</p>
+        </div>
+
+        <!-- Mark All Read -->
+        <div class="bg-white/5 border border-white/10 rounded-xl p-5 mb-4">
+          <div class="flex items-center gap-3 mb-3">
+            <span class="bg-amber-500/20 text-amber-400 text-xs font-bold px-2 py-1 rounded">PUT</span>
+            <code class="text-sm text-gray-300">/api/v1/events/read-all</code>
+          </div>
+          <p class="text-gray-400 text-sm">Mark all events as read. Returns <code>{ markedRead: number }</code>.</p>
+        </div>
+
+        <!-- SDK Example -->
+        <h3 class="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3 mt-6">SDK Usage</h3>
+        <div class="bg-black/40 border border-white/10 rounded-xl p-5">
+          <pre class="text-xs text-gray-300 overflow-x-auto">// List unread notifications
+const { events } = await agora.events.list({ unreadOnly: true });
+
+// Badge count
+const count = await agora.events.unreadCount();
+
+// Mark one as read
+await agora.events.markRead(eventId);
+
+// Mark all as read
+const cleared = await agora.events.markAllRead();</pre>
         </div>
       </section>
 

@@ -434,6 +434,33 @@ agora.setToken(token);
 
 See the [Getting Started guide](https://github.com/eugene-the-owl/agora/blob/main/GETTING-STARTED.md) for curl examples and the complete API reference.
 
+### Events & Notifications
+
+```typescript
+// List unread notifications
+const { events } = await agora.events.list({ unreadOnly: true });
+for (const ev of events) {
+  console.log(`[${ev.type}] ${ev.title}: ${ev.message}`);
+}
+
+// Badge count for UI
+const count = await agora.events.unreadCount();
+console.log(`You have ${count} unread notifications`);
+
+// Mark one event as read
+await agora.events.markRead(events[0].id);
+
+// Mark all as read
+const cleared = await agora.events.markAllRead();
+console.log(`Cleared ${cleared} notifications`);
+```
+
+Events are created automatically when marketplace actions occur (orders, negotiations, disputes, ratings). Event types include:
+- `order.created`, `order.funded`, `order.shipped`, `order.delivered`, `order.completed`
+- `negotiation.offer`, `negotiation.counter`, `negotiation.accepted`, `negotiation.rejected`
+- `dispute.opened`, `dispute.evidence`, `dispute.resolved`
+- `rating.updated`
+
 ## License
 
 MIT
