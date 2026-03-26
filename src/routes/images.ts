@@ -2,37 +2,44 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { uuidParamSchema } from '../validators/common';
 import { logger } from '../utils/logger';
+import { sanitizeImage, ImageSanitizationError } from '../services/imageSanitizer';
 
 const router = Router();
 
-// ─── Multer Configuration ───────────────────────────────────────
+// ─── Configuration ──────────────────────────────────────────────
 
 const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads', 'listings');
+const TEMP_DIR = path.join(os.tmpdir(), 'agora-uploads');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_FILES = 5;
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-// Ensure uploads directory exists
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+// Ensure directories exist
+for (const dir of [UPLOADS_DIR, TEMP_DIR]) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
+
+// ─── Multer Configuration (temp storage) ────────────────────────
+// Upload raw files to temp dir; they'll be sanitized before moving to final dir
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    cb(null, UPLOADS_DIR);
+    cb(null, TEMP_DIR);
   },
-  filename: (req, file, cb) => {
-    const listingId = req.params.id;
+  filename: (_req, file, cb) => {
     const timestamp = Date.now();
     const random = crypto.randomBytes(6).toString('hex');
     const ext = path.extname(file.originalname).toLowerCase() || mimeToExt(file.mimetype);
-    cb(null, `${listingId}_${timestamp}_${random}${ext}`);
+    cb(null, `raw_${timestamp}_${random}${ext}`);
   },
 });
 
@@ -62,6 +69,19 @@ const upload = multer({
   },
 });
 
+// ─── Image Data Shape (stored in listing.images JSON array) ─────
+
+export interface ListingImageData {
+  url: string;
+  thumbnailUrl: string;
+  filename: string;
+  thumbnailFilename: string;
+  width: number;
+  height: number;
+  sanitized: boolean;
+  uploadedAt: string;
+}
+
 // Helper to serialize BigInt fields
 function serializeListing(listing: any) {
   return {
@@ -71,6 +91,15 @@ function serializeListing(listing: any) {
   };
 }
 
+/** Safely delete a file, ignoring errors */
+function safeUnlink(filePath: string): void {
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {
+    // Best-effort cleanup
+  }
+}
+
 // ─── POST /api/v1/listings/:id/images — Upload images ──────────
 
 router.post(
@@ -78,7 +107,6 @@ router.post(
   authenticate,
   requireScope('list'),
   (req: Request, res: Response, next: NextFunction) => {
-    // Run multer as middleware, handle its errors
     upload.array('images', MAX_FILES)(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -94,6 +122,8 @@ router.post(
     });
   },
   async (req: Request, res: Response, next: NextFunction) => {
+    const rawFiles: string[] = [];
+
     try {
       const { id } = uuidParamSchema.parse(req.params);
       const files = req.files as Express.Multer.File[];
@@ -102,22 +132,21 @@ router.post(
         throw new AppError('NO_FILES', 'No image files provided. Use field name "images".', 400);
       }
 
+      // Track raw files for cleanup
+      files.forEach((f) => rawFiles.push(f.path));
+
       // Verify listing exists and belongs to the authenticated agent
       const listing = await prisma.listing.findUnique({ where: { id } });
       if (!listing) {
-        // Clean up uploaded files
-        files.forEach((f) => fs.unlinkSync(f.path));
         throw new AppError('LISTING_NOT_FOUND', 'Listing not found', 404);
       }
       if (listing.agentId !== req.agent!.id) {
-        files.forEach((f) => fs.unlinkSync(f.path));
         throw new AppError('FORBIDDEN', 'You can only upload images to your own listings', 403);
       }
 
       // Check total image count (existing + new)
-      const existingImages = listing.images || [];
+      const existingImages: ListingImageData[] = parseExistingImages(listing.images);
       if (existingImages.length + files.length > MAX_FILES) {
-        files.forEach((f) => fs.unlinkSync(f.path));
         throw new AppError(
           'TOO_MANY_IMAGES',
           `Maximum ${MAX_FILES} images per listing. Currently ${existingImages.length}, attempted to add ${files.length}.`,
@@ -125,27 +154,58 @@ router.post(
         );
       }
 
-      // Build URLs for new files
-      const newImageUrls = files.map((f) => `/uploads/listings/${f.filename}`);
-      const allImages = [...existingImages, ...newImageUrls];
+      // ── Sanitize each uploaded file ───────────────────────────
+      const newImages: ListingImageData[] = [];
 
-      // Update listing
+      for (const file of files) {
+        try {
+          const result = await sanitizeImage(file.path, UPLOADS_DIR, id);
+
+          newImages.push({
+            url: `/api/v1/images/proxy/${id}/${result.filename}`,
+            thumbnailUrl: `/api/v1/images/proxy/${id}/${result.filename}?size=thumb`,
+            filename: result.filename,
+            thumbnailFilename: result.thumbnailFilename,
+            width: result.width,
+            height: result.height,
+            sanitized: true,
+            uploadedAt: new Date().toISOString(),
+          });
+        } catch (err) {
+          if (err instanceof ImageSanitizationError) {
+            throw new AppError(err.code, err.message, 400);
+          }
+          throw err;
+        }
+      }
+
+      // Merge with existing images
+      const allImages = [...existingImages, ...newImages];
+
+      // Update listing with structured image data
       const updated = await prisma.listing.update({
         where: { id },
-        data: { images: allImages },
+        data: { images: allImages as any },
         include: {
           agent: { select: { id: true, name: true, reputation: true } },
         },
       });
 
-      logger.info('Images uploaded', { listingId: id, count: files.length, agentId: req.agent!.id });
+      logger.info('Images uploaded and sanitized', {
+        listingId: id,
+        count: newImages.length,
+        agentId: req.agent!.id,
+      });
 
       res.json({
         listing: serializeListing(updated),
-        uploaded: newImageUrls,
+        uploaded: newImages.map((img) => img.url),
       });
     } catch (err) {
       next(err);
+    } finally {
+      // Always clean up raw temp files
+      rawFiles.forEach(safeUnlink);
     }
   },
 );
@@ -174,24 +234,43 @@ router.delete(
         throw new AppError('FORBIDDEN', 'You can only delete images from your own listings', 403);
       }
 
-      const imageUrl = `/uploads/listings/${filename}`;
-      const existingImages = listing.images || [];
+      const existingImages: ListingImageData[] = parseExistingImages(listing.images);
 
-      if (!existingImages.includes(imageUrl)) {
-        throw new AppError('IMAGE_NOT_FOUND', 'Image not found on this listing', 404);
+      // Find the image by filename
+      const imageIndex = existingImages.findIndex((img) => img.filename === filename);
+      if (imageIndex === -1) {
+        // Backwards compatibility: check for old-format URL strings
+        const legacyUrl = `/uploads/listings/${filename}`;
+        const legacyIndex = (listing.images as any[])?.findIndex((img: any) =>
+          typeof img === 'string' && img === legacyUrl
+        );
+        if (legacyIndex === undefined || legacyIndex === -1) {
+          throw new AppError('IMAGE_NOT_FOUND', 'Image not found on this listing', 404);
+        }
+        // Handle legacy removal
+        const updatedImages = (listing.images as any[]).filter((_: any, i: number) => i !== legacyIndex);
+        safeUnlink(path.join(UPLOADS_DIR, filename));
+        const updated = await prisma.listing.update({
+          where: { id },
+          data: { images: updatedImages },
+          include: { agent: { select: { id: true, name: true, reputation: true } } },
+        });
+        logger.info('Legacy image deleted', { listingId: id, filename, agentId: req.agent!.id });
+        res.json({ listing: serializeListing(updated), deleted: filename });
+        return;
       }
 
-      // Remove from disk
-      const filePath = path.join(UPLOADS_DIR, filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      const imageData = existingImages[imageIndex];
+
+      // Remove files from disk (sanitized + thumbnail)
+      safeUnlink(path.join(UPLOADS_DIR, imageData.filename));
+      safeUnlink(path.join(UPLOADS_DIR, imageData.thumbnailFilename));
 
       // Remove from listing
-      const updatedImages = existingImages.filter((img) => img !== imageUrl);
+      const updatedImages = existingImages.filter((_, i) => i !== imageIndex);
       const updated = await prisma.listing.update({
         where: { id },
-        data: { images: updatedImages },
+        data: { images: updatedImages as any },
         include: {
           agent: { select: { id: true, name: true, reputation: true } },
         },
@@ -208,5 +287,19 @@ router.delete(
     }
   },
 );
+
+// ─── Helpers ────────────────────────────────────────────────────
+
+/**
+ * Parse existing images from the listing, handling both old (string[])
+ * and new (ListingImageData[]) formats.
+ */
+function parseExistingImages(images: unknown): ListingImageData[] {
+  if (!images || !Array.isArray(images)) return [];
+
+  return images
+    .filter((img: any) => typeof img === 'object' && img !== null && img.url)
+    .map((img: any) => img as ListingImageData);
+}
 
 export default router;

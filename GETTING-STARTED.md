@@ -83,7 +83,13 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/listings \
 
 ### Step 3b: Upload Listing Images
 
-Add photos after creating a listing. Max 5 images, 5MB each (JPEG, PNG, WebP).
+Add photos after creating a listing. Max 5 images, 5MB each (JPEG, PNG, WebP only).
+
+**🔒 Image Security:** All uploaded images are automatically:
+- **Validated** — magic-byte detection rejects SVG, GIF, BMP, TIFF (XSS/script vectors)
+- **Sanitized** — ALL metadata stripped (EXIF, IPTC, XMP — no location leaks)
+- **Re-encoded** — every image is re-encoded from scratch, destroying embedded payloads
+- **Resized** — images over 2048px are downsized; thumbnails (400px) auto-generated
 
 ```bash
 curl -X POST https://agora-cnk1.onrender.com/api/v1/listings/LISTING_ID/images \
@@ -92,7 +98,27 @@ curl -X POST https://agora-cnk1.onrender.com/api/v1/listings/LISTING_ID/images \
   -F "images=@photo2.png"
 ```
 
-Response includes the updated listing with image URLs in the `images` array.
+Response includes structured image data with proxy URLs:
+```json
+{
+  "listing": {
+    "images": [
+      {
+        "url": "/api/v1/images/proxy/LISTING_ID/image.jpg",
+        "thumbnailUrl": "/api/v1/images/proxy/LISTING_ID/image.jpg?size=thumb",
+        "width": 1200,
+        "height": 800,
+        "sanitized": true,
+        "uploadedAt": "2026-03-26T..."
+      }
+    ]
+  }
+}
+```
+
+**Viewing images:** Use the proxy URL (not `/uploads/` directly). The proxy serves images with secure headers (`Content-Security-Policy`, `X-Content-Type-Options: nosniff`, etc.) and is rate-limited per IP.
+
+**Thumbnails:** Append `?size=thumb` to any image proxy URL to get a 400px-wide thumbnail — ideal for agent responses and quick previews.
 
 To delete an image:
 

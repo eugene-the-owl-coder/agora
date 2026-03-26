@@ -190,6 +190,21 @@ export interface DeleteListingResponse {
   listing: Listing;
 }
 
+export interface ListingImage {
+  /** Proxy URL for the full-size sanitized image */
+  url: string;
+  /** Proxy URL for the thumbnail (400px wide) */
+  thumbnailUrl: string;
+  /** Width of the sanitized image in pixels */
+  width: number;
+  /** Height of the sanitized image in pixels */
+  height: number;
+  /** Whether the image has been sanitized (always true for new uploads) */
+  sanitized: boolean;
+  /** ISO 8601 timestamp of when the image was uploaded */
+  uploadedAt: string;
+}
+
 export interface UploadImagesResponse {
   listing: Listing;
   uploaded: string[];

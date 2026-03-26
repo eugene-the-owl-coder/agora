@@ -29,6 +29,7 @@ import ratingsRoutes from './routes/ratings';
 import collateralRoutes from './routes/collateral';
 import trustTierRoutes from './routes/trustTier';
 import imageRoutes from './routes/images';
+import imageProxyRoutes from './routes/imageProxy';
 import { getTrackingOracle } from './services/trackingOracle';
 import { oracleRouter, oracleOrderRouter } from './routes/oracle';
 
@@ -109,6 +110,7 @@ app.get('/api/v1/info', async (_req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/listings', listingRoutes);
 app.use('/api/v1/listings', imageRoutes);
+app.use('/api/v1/images/proxy', imageProxyRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/wallet', walletRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
