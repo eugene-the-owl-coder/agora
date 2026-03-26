@@ -67,6 +67,8 @@ export interface OracleOrderView {
 
 const DEFAULT_GRACE_PERIOD_HOURS = 24;
 const GRACE_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const DISPUTE_STALE_DAYS = 7;          // Flag disputes open 7+ days with no resolution
+const EVIDENCE_DEADLINE_HOURS = 72;    // Note if no evidence within 72 hours
 
 // ── Oracle Class ───────────────────────────────────────────────────────────
 
@@ -140,11 +142,19 @@ export class TrackingOracle {
       this.processGracePeriodReleases().catch((err) => {
         logger.error('Grace period release check failed', { error: (err as Error).message });
       });
+      this.processDisputeTimeouts().catch((err) => {
+        logger.error('Dispute timeout check failed', { error: (err as Error).message });
+      });
     }, GRACE_CHECK_INTERVAL_MS);
 
     // Also run grace period check immediately
     this.processGracePeriodReleases().catch((err) => {
       logger.error('Initial grace period release check failed', { error: (err as Error).message });
+    });
+
+    // Run dispute timeout check immediately too
+    this.processDisputeTimeouts().catch((err) => {
+      logger.error('Initial dispute timeout check failed', { error: (err as Error).message });
     });
   }
 
@@ -513,6 +523,7 @@ export class TrackingOracle {
     });
 
     // Find orders eligible for auto-release
+    // Exclude orders with ANY dispute (open, evidence_review, or resolved)
     const eligibleOrders = await prisma.order.findMany({
       where: {
         status: 'fulfilled',
@@ -520,8 +531,9 @@ export class TrackingOracle {
           not: null,
           lte: cutoffTime,
         },
-        // Exclude disputed orders
+        // Exclude disputed orders — check both the legacy field and the Dispute relation
         disputeReason: null,
+        dispute: null,
       },
       include: {
         seller: { select: { walletAddress: true } },
@@ -626,6 +638,97 @@ export class TrackingOracle {
         error: (err as Error).message,
       });
       // Don't update status — will retry on next cycle
+    }
+  }
+
+  // ── Dispute Timeout Processing ───────────────────────────────────────────
+
+  /**
+   * Process dispute timeouts:
+   * 1. Flag disputes open 7+ days with no resolution for admin attention
+   * 2. Note in the dispute record if no evidence submitted within 72 hours
+   */
+  async processDisputeTimeouts(): Promise<void> {
+    logger.debug('Checking for dispute timeouts');
+
+    const now = new Date();
+
+    // 1. Flag stale disputes (open 7+ days, not yet flagged)
+    const staleCutoff = new Date(now.getTime() - DISPUTE_STALE_DAYS * 24 * 60 * 60 * 1000);
+    const staleDisputes = await prisma.dispute.findMany({
+      where: {
+        status: { in: ['open', 'evidence_review'] },
+        createdAt: { lte: staleCutoff },
+        flaggedAt: null,
+      },
+    });
+
+    for (const dispute of staleDisputes) {
+      try {
+        await prisma.dispute.update({
+          where: { id: dispute.id },
+          data: {
+            flaggedAt: now,
+            flagReason: `Dispute open for ${DISPUTE_STALE_DAYS}+ days without resolution — requires admin attention`,
+          },
+        });
+
+        logger.warn('Dispute flagged as stale', {
+          disputeId: dispute.id,
+          orderId: dispute.orderId,
+          openedAt: dispute.createdAt.toISOString(),
+          daysOpen: Math.floor((now.getTime() - dispute.createdAt.getTime()) / (24 * 60 * 60 * 1000)),
+        });
+      } catch (err) {
+        logger.error('Failed to flag stale dispute', {
+          disputeId: dispute.id,
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    // 2. Check evidence deadlines — disputes where the deadline passed with no evidence
+    const disputesPastDeadline = await prisma.dispute.findMany({
+      where: {
+        status: { in: ['open'] },
+        evidenceDeadline: { not: null, lte: now },
+        flaggedAt: null,
+      },
+      include: {
+        evidence: { select: { id: true } },
+      },
+    });
+
+    for (const dispute of disputesPastDeadline) {
+      if (dispute.evidence.length === 0) {
+        try {
+          await prisma.dispute.update({
+            where: { id: dispute.id },
+            data: {
+              flaggedAt: now,
+              flagReason: `No evidence submitted within ${EVIDENCE_DEADLINE_HOURS} hours of dispute opening`,
+            },
+          });
+
+          logger.warn('Dispute flagged — no evidence submitted before deadline', {
+            disputeId: dispute.id,
+            orderId: dispute.orderId,
+            evidenceDeadline: dispute.evidenceDeadline?.toISOString(),
+          });
+        } catch (err) {
+          logger.error('Failed to flag evidence-less dispute', {
+            disputeId: dispute.id,
+            error: (err as Error).message,
+          });
+        }
+      }
+    }
+
+    if (staleDisputes.length > 0 || disputesPastDeadline.length > 0) {
+      logger.info('Dispute timeout check complete', {
+        staleFlagged: staleDisputes.length,
+        evidenceDeadlineFlagged: disputesPastDeadline.filter((d) => d.evidence.length === 0).length,
+      });
     }
   }
 

@@ -38,6 +38,9 @@ model Agent {
   featureRequests   FeatureRequest[]
   persistentBuyOrders BuyOrder[]
   marketplaceCredentials MarketplaceCredential[]
+  openedDisputes    Dispute[]         @relation("DisputeOpener")
+  resolvedDisputes  Dispute[]         @relation("DisputeResolver")
+  submittedEvidence DisputeEvidence[] @relation("EvidenceSubmitter")
 
   @@index([apiKeyPrefix])
   @@index([walletAddress])
@@ -122,6 +125,7 @@ model Order {
   seller          Agent          @relation("SellerOrders", fields: [sellerAgentId], references: [id])
   transactions    Transaction[]
   trackingEvents  TrackingEvent[]
+  dispute         Dispute?
 
   @@index([buyerAgentId])
   @@index([sellerAgentId])
@@ -265,6 +269,76 @@ model MarketplaceCredential {
   @@unique([agentId, marketplace])
   @@index([agentId])
   @@index([marketplace])
+}
+
+// ─── Phase 4: Dispute Resolution ───────────────────────────────────────
+
+enum DisputeStatus {
+  open
+  evidence_review
+  resolved
+}
+
+enum DisputeReason {
+  not_received
+  wrong_item
+  damaged
+  counterfeit
+  not_as_described
+  other
+}
+
+enum DisputeResolution {
+  full_refund
+  partial_refund
+  release_to_seller
+  split
+}
+
+model Dispute {
+  id            String             @id @default(uuid())
+  orderId       String             @unique
+  openedById    String
+  reason        DisputeReason
+  description   String
+  status        DisputeStatus      @default(open)
+  resolution    DisputeResolution?
+  resolvedById  String?
+  resolvedAt    DateTime?
+  resolutionNotes String?
+  refundAmount  BigInt?
+  disputeTxSignature String?
+  resolutionTxSignature String?
+  evidenceDeadline DateTime?
+  flaggedAt     DateTime?
+  flagReason    String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  order         Order              @relation(fields: [orderId], references: [id])
+  openedBy      Agent              @relation("DisputeOpener", fields: [openedById], references: [id])
+  resolvedBy    Agent?             @relation("DisputeResolver", fields: [resolvedById], references: [id])
+  evidence      DisputeEvidence[]
+
+  @@index([orderId])
+  @@index([status])
+  @@index([openedById])
+}
+
+model DisputeEvidence {
+  id          String   @id @default(uuid())
+  disputeId   String
+  submittedById String
+  description String
+  urls        String[]
+  type        String   @default("other") // photo, screenshot, receipt, communication, other
+  createdAt   DateTime @default(now())
+
+  dispute     Dispute  @relation(fields: [disputeId], references: [id])
+  submittedBy Agent    @relation("EvidenceSubmitter", fields: [submittedById], references: [id])
+
+  @@index([disputeId])
+  @@index([submittedById])
 }
 
 model SyndicationRecord {

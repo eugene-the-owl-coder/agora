@@ -172,6 +172,16 @@ router.get('/:id', authenticate, async (req: Request, res: Response, next: NextF
         buyer: { select: { id: true, name: true, walletAddress: true } },
         seller: { select: { id: true, name: true, walletAddress: true } },
         transactions: { orderBy: { createdAt: 'desc' } },
+        dispute: {
+          select: {
+            id: true,
+            reason: true,
+            status: true,
+            resolution: true,
+            resolvedAt: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
