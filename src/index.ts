@@ -7,6 +7,7 @@ import { prisma } from './lib/prisma';
 import { config } from './config';
 import { globalRateLimiter } from './middleware/rateLimiter';
 import { errorHandler } from './middleware/errorHandler';
+import { basicAuth } from './middleware/basicAuth';
 import { logger } from './utils/logger';
 
 // Routes
@@ -64,7 +65,8 @@ if (!require('fs').existsSync(uploadsDir)) {
 app.use('/uploads', express.static(uploadsDir));
 
 // Serve static files (landing page, docs, feature request UI)
-app.use(express.static(path.join(__dirname, 'public')));
+// Protected by basic auth when SITE_PASSWORD is set
+app.use(basicAuth, express.static(path.join(__dirname, 'public')));
 
 // Request logging
 app.use((req, _res, next) => {

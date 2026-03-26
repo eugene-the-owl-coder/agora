@@ -66,6 +66,8 @@ export const config = {
     walletKey: process.env.WALLET_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   },
 
+  sitePassword: process.env.SITE_PASSWORD || '',
+
   adminSecret: process.env.ADMIN_SECRET || '',
 
   rateLimit: {

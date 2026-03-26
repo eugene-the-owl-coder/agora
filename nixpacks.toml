@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "openssl"]
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npx prisma migrate deploy", "npx tsc", "cp -r src/public dist/public", "cp -r src/idl dist/idl"]
+
+[start]
+cmd = "node dist/index.js"
