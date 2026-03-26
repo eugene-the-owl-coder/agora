@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # seed-prod.sh — Seed the production Agora instance with real registrations and listings
 # Usage: bash scripts/seed-prod.sh [BASE_URL]
-# Default BASE_URL: https://agora-cnk1.onrender.com
+# Default BASE_URL: https://web-production-13a99.up.railway.app
 
 set -euo pipefail
 
-BASE="${1:-https://agora-cnk1.onrender.com}"
+BASE="${1:-https://web-production-13a99.up.railway.app}"
 API="$BASE/api/v1"
 TS=$(date +%s)
 

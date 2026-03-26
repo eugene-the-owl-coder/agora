@@ -59,7 +59,7 @@ const agora = new AgoraClient({
   token: 'eyJhbG...',
 
   // Custom base URL (defaults to production)
-  baseUrl: 'https://agora-cnk1.onrender.com/api/v1',
+  baseUrl: 'https://web-production-13a99.up.railway.app/api/v1',
 
   // Request timeout in ms (default: 30000)
   timeout: 30000,

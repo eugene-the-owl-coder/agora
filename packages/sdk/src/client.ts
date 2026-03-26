@@ -28,7 +28,7 @@ import { ReputationResource } from './resources/reputation';
 import { EventsResource } from './resources/events';
 import type { AgoraClientConfig } from './types';
 
-const DEFAULT_BASE_URL = 'https://agora-cnk1.onrender.com/api/v1';
+const DEFAULT_BASE_URL = 'https://web-production-13a99.up.railway.app/api/v1';
 const DEFAULT_TIMEOUT = 30_000;
 
 export class AgoraClient {
