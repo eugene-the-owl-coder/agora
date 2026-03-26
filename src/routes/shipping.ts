@@ -1,10 +1,12 @@
 /**
- * Shipping Routes — Public endpoint for shipping rate quotes
+ * Shipping Routes — Public endpoints for shipping rate quotes
  *
- * GET /api/v1/shipping/rates
- *   - By listingId: looks up listing metadata for origin/weight/dimensions
- *   - By manual params: originPostalCode, weight, length, width, height
- *   - Destination: destPostalCode (CA), destZip (US), destCountry (international)
+ * Legacy (backward compat):
+ *   GET /api/v1/shipping/rates — FedEx-style rate lookup by listing or manual params
+ *
+ * Plugin-aware (new):
+ *   GET  /api/v1/shipping/carriers — List available carrier plugins
+ *   POST /api/v1/shipping/quotes   — Multi-carrier quotes
  *
  * No auth required — buyers need to see shipping before registering.
  */
@@ -13,12 +15,145 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { getShippingRates, ShippingRateParams } from '../services/shipping';
+import { createCarrierRegistry, isCarrierPlugin } from '../services/carriers';
+import type { QuoteRequest } from '../services/carriers';
 import { AppError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
-// Validation schema for shipping rate query params
+// ─── Shared registry instance for routes ────────────────────────
+
+let _registry: ReturnType<typeof createCarrierRegistry> | null = null;
+function getRegistry() {
+  if (!_registry) {
+    _registry = createCarrierRegistry();
+  }
+  return _registry;
+}
+
+// ─── GET /carriers — List available carrier plugins ─────────────
+
+router.get('/carriers', (_req: Request, res: Response) => {
+  const registry = getRegistry();
+  const allNames = registry.list();
+
+  const carriers = allNames.map((name) => {
+    const tracker = registry.get(name);
+    if (!tracker) return null;
+
+    const isPlugin = isCarrierPlugin(tracker);
+
+    return {
+      id: isPlugin ? tracker.carrierId : tracker.name,
+      name: isPlugin ? tracker.displayName : tracker.name,
+      capabilities: {
+        tracking: true,
+        quotes: isPlugin,
+        labels: isPlugin && typeof tracker.purchaseLabel === 'function',
+      },
+      supportedCountries: isPlugin ? tracker.supportedCountries : [],
+    };
+  }).filter(Boolean);
+
+  res.json({ carriers });
+});
+
+// ─── POST /quotes — Multi-carrier rate quotes ──────────────────
+
+const quotesBodySchema = z.object({
+  fromPostalCode: z.string().min(3).max(10),
+  fromCountry: z.string().length(2).default('CA'),
+  toPostalCode: z.string().min(3).max(10),
+  toCountry: z.string().length(2).default('US'),
+  weight: z.object({
+    value: z.number().positive(),
+    unit: z.enum(['lb', 'kg', 'oz', 'g']),
+  }),
+  dimensions: z.object({
+    length: z.number().positive(),
+    width: z.number().positive(),
+    height: z.number().positive(),
+    unit: z.enum(['in', 'cm']),
+  }).optional(),
+});
+
+router.post('/quotes', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const body = quotesBodySchema.parse(req.body);
+    const registry = getRegistry();
+    const plugins = registry.listPlugins();
+
+    if (plugins.length === 0) {
+      res.json({
+        quotes: [],
+        meta: {
+          carriers: 0,
+          message: 'No carrier plugins available. Check carrier credentials.',
+        },
+      });
+      return;
+    }
+
+    const quoteRequest: QuoteRequest = {
+      fromPostalCode: body.fromPostalCode,
+      fromCountry: body.fromCountry,
+      toPostalCode: body.toPostalCode,
+      toCountry: body.toCountry,
+      weight: body.weight,
+      dimensions: body.dimensions,
+    };
+
+    // Gather quotes from all carrier plugins in parallel
+    const results = await Promise.allSettled(
+      plugins.map(async (plugin) => {
+        const quotes = await plugin.getQuotes(quoteRequest);
+        return quotes;
+      }),
+    );
+
+    const allQuotes: Array<{
+      serviceType: string;
+      serviceName: string;
+      totalPrice: number;
+      currency: string;
+      estimatedDays: number;
+      carrier: string;
+    }> = [];
+    const errors: string[] = [];
+
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        allQuotes.push(...result.value);
+      } else {
+        const carrierId = plugins[i].carrierId;
+        errors.push(`${carrierId}: ${result.reason?.message || 'Unknown error'}`);
+        logger.error('Shipping quotes: carrier failed', {
+          carrier: carrierId,
+          error: result.reason?.message,
+        });
+      }
+    });
+
+    // Sort by price ascending
+    allQuotes.sort((a, b) => a.totalPrice - b.totalPrice);
+
+    res.json({
+      quotes: allQuotes,
+      meta: {
+        carriers: plugins.length,
+        carriersQueried: plugins.map((p) => p.carrierId),
+        quotesReturned: allQuotes.length,
+        ...(errors.length > 0 && { errors }),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /rates — Legacy FedEx-style rate lookup (backward compat) ──
+
 const shippingRateQuerySchema = z.object({
   // Option A: lookup by listing
   listingId: z.string().uuid().optional(),
@@ -42,7 +177,6 @@ const shippingRateQuerySchema = z.object({
   { message: 'Provide at least one destination: destPostalCode, destZip, or destCountry' },
 );
 
-// GET /rates — get shipping quotes
 router.get('/rates', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const query = shippingRateQuerySchema.parse(req.query);

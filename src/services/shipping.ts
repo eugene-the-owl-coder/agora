@@ -1,15 +1,15 @@
 /**
- * Shipping Rate Service — FedEx Rate API (primary) + Canada Post fallback
+ * Shipping Rate Service — Multi-carrier with FedEx fallback estimates
  *
- * FedEx Sandbox: https://apis-sandbox.fedex.com/rate/v1/rates/quotes
- * FedEx Production: https://apis.fedex.com/rate/v1/rates/quotes
- * Auth: OAuth2 client_credentials → Bearer token
+ * Now delegates to CarrierPlugin.getQuotes() when available.
+ * Keeps the original ShippingRateParams/ShippingOption interface for backward compat.
  */
 
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { createCarrierRegistry, CarrierRegistry, QuoteRequest } from './carriers';
 
-// ─── Types ──────────────────────────────────────────────────────
+// ─── Types (backward compat) ────────────────────────────────────
 
 export interface ShippingRateParams {
   originPostalCode: string;
@@ -35,159 +35,63 @@ export interface ShippingOption {
   carrier: 'fedex' | 'canadapost' | 'estimate';
 }
 
-// ─── FedEx OAuth Token Cache ────────────────────────────────────
+// ─── Singleton registry ─────────────────────────────────────────
 
-let fedexToken: string | null = null;
-let fedexTokenExpiry = 0;
-
-async function getFedExToken(): Promise<string> {
-  if (fedexToken && Date.now() < fedexTokenExpiry - 60_000) {
-    return fedexToken;
+let _registry: CarrierRegistry | null = null;
+function getRegistry(): CarrierRegistry {
+  if (!_registry) {
+    _registry = createCarrierRegistry();
   }
-
-  const { clientId, clientSecret, sandbox } = config.fedex;
-  const url = sandbox
-    ? 'https://apis-sandbox.fedex.com/oauth/token'
-    : 'https://apis.fedex.com/oauth/token';
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=client_credentials&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`,
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`FedEx OAuth failed ${res.status}: ${body.substring(0, 200)}`);
-  }
-
-  const data = await res.json() as { access_token: string; expires_in: number };
-  fedexToken = data.access_token;
-  fedexTokenExpiry = Date.now() + data.expires_in * 1000;
-  logger.info('FedEx: OAuth token acquired', { expiresIn: data.expires_in });
-  return fedexToken;
+  return _registry;
 }
 
-// ─── FedEx Rate Quote ───────────────────────────────────────────
+// ─── Convert legacy params to QuoteRequest ──────────────────────
 
-async function getFedExRates(params: ShippingRateParams): Promise<ShippingOption[]> {
-  const token = await getFedExToken();
-  const { sandbox, accountNumber } = config.fedex;
-  const cadToUsdc = config.shipping.cadToUsdcRate;
-
-  const url = sandbox
-    ? 'https://apis-sandbox.fedex.com/rate/v1/rates/quotes'
-    : 'https://apis.fedex.com/rate/v1/rates/quotes';
-
-  // Determine destination
+function toQuoteRequest(params: ShippingRateParams): QuoteRequest {
   const destCountry = params.destinationCountry?.toUpperCase() ||
     (params.destinationZip ? 'US' : 'CA');
   const destPostal = params.destinationPostalCode || params.destinationZip || '';
   const originCountry = params.originCountry?.toUpperCase() || 'CA';
 
-  // Convert cm → inches, kg → lbs for FedEx (imperial)
-  const weightLbs = Math.max(params.weightKg * 2.20462, 0.1);
-  const lengthIn = Math.max(Math.round(params.lengthCm / 2.54), 1);
-  const widthIn = Math.max(Math.round(params.widthCm / 2.54), 1);
-  const heightIn = Math.max(Math.round(params.heightCm / 2.54), 1);
-
-  const body: any = {
-    accountNumber: { value: accountNumber },
-    requestedShipment: {
-      shipper: {
-        address: {
-          postalCode: params.originPostalCode.replace(/\s/g, '').toUpperCase(),
-          countryCode: originCountry,
-        },
-      },
-      recipient: {
-        address: {
-          postalCode: destPostal.replace(/\s/g, '').toUpperCase(),
-          countryCode: destCountry,
-        },
-      },
-      pickupType: 'DROPOFF_AT_FEDEX_LOCATION',
-      rateRequestType: ['LIST', 'ACCOUNT'],
-      requestedPackageLineItems: [
-        {
-          weight: {
-            units: 'LB',
-            value: parseFloat(weightLbs.toFixed(1)),
-          },
-          dimensions: {
-            length: lengthIn,
-            width: widthIn,
-            height: heightIn,
-            units: 'IN',
-          },
-        },
-      ],
+  return {
+    fromPostalCode: params.originPostalCode,
+    fromCountry: originCountry,
+    toPostalCode: destPostal,
+    toCountry: destCountry,
+    weight: { value: params.weightKg, unit: 'kg' },
+    dimensions: {
+      length: params.lengthCm,
+      width: params.widthCm,
+      height: params.heightCm,
+      unit: 'cm',
     },
   };
+}
 
-  logger.debug('FedEx rate request', { url, destCountry, destPostal });
+// ─── Convert QuoteResponse → ShippingOption (backward compat) ───
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      'X-locale': 'en_CA',
-    },
-    body: JSON.stringify(body),
-  });
+function quoteToShippingOption(
+  quote: { serviceType: string; serviceName: string; totalPrice: number; currency: string; estimatedDays: number; carrier: string },
+): ShippingOption {
+  const cadToUsdc = config.shipping.cadToUsdcRate;
 
-  const data = await res.json() as any;
-
-  if (!res.ok) {
-    const errMsg = data?.errors?.[0]?.message || JSON.stringify(data).substring(0, 200);
-    throw new Error(`FedEx rate API ${res.status}: ${errMsg}`);
+  // Normalize price to CAD
+  let priceCAD = quote.totalPrice;
+  if (quote.currency === 'USD') {
+    priceCAD = priceCAD / cadToUsdc;
   }
 
-  // Parse rate reply
-  const rateDetails = data?.output?.rateReplyDetails;
-  if (!rateDetails || !Array.isArray(rateDetails)) {
-    logger.warn('FedEx: no rateReplyDetails', { alerts: data?.output?.alerts });
-    return [];
-  }
-
-  return rateDetails.map((rd: any): ShippingOption => {
-    const serviceCode = rd.serviceType || '';
-    const serviceName = rd.serviceName || serviceCode.replace(/_/g, ' ');
-
-    // Get the best rate (account rate if available, otherwise list)
-    const rates = rd.ratedShipmentDetails || [];
-    const accountRate = rates.find((r: any) => r.rateType === 'ACCOUNT');
-    const listRate = rates.find((r: any) => r.rateType === 'LIST');
-    const bestRate = accountRate || listRate || rates[0];
-
-    const totalCharge = bestRate?.totalNetCharge ?? bestRate?.totalNetFedExCharge ?? 0;
-    const currency = bestRate?.currency || 'CAD';
-
-    // Convert to CAD if needed
-    let priceCAD = parseFloat(totalCharge);
-    if (currency === 'USD') {
-      priceCAD = priceCAD / cadToUsdc; // USD → CAD approximate
-    }
-
-    const transitDays = rd.operationalDetail?.transitDays
-      ? parseInt(rd.operationalDetail.transitDays, 10)
-      : (rd.commit?.transitDays?.amount ? parseInt(rd.commit.transitDays.amount, 10) : null);
-
-    const deliveryDate = rd.commit?.dateDetail?.dayFormat || rd.operationalDetail?.deliveryDate || null;
-
-    return {
-      serviceCode,
-      serviceName,
-      priceCAD: parseFloat(priceCAD.toFixed(2)),
-      priceUSDC: parseFloat((priceCAD * cadToUsdc).toFixed(2)),
-      transitDays,
-      expectedDelivery: deliveryDate,
-      guaranteed: rd.commit?.guaranteed === true,
-      isEstimate: false,
-      carrier: 'fedex',
-    };
-  }).filter((opt: ShippingOption) => opt.priceCAD > 0);
+  return {
+    serviceCode: quote.serviceType,
+    serviceName: quote.serviceName,
+    priceCAD: parseFloat(priceCAD.toFixed(2)),
+    priceUSDC: parseFloat((priceCAD * cadToUsdc).toFixed(2)),
+    transitDays: quote.estimatedDays || null,
+    expectedDelivery: null,
+    guaranteed: false,
+    isEstimate: false,
+    carrier: (quote.carrier === 'fedex' ? 'fedex' : 'estimate') as ShippingOption['carrier'],
+  };
 }
 
 // ─── Fallback Estimated Rates ───────────────────────────────────
@@ -242,28 +146,53 @@ function getFallbackRates(params: ShippingRateParams): ShippingOption[] {
   ];
 }
 
-// ─── Main Entry Point ───────────────────────────────────────────
+// ─── Main Entry Point (backward compat) ─────────────────────────
 
 export async function getShippingRates(params: ShippingRateParams): Promise<ShippingOption[]> {
-  const { clientId, clientSecret } = config.fedex;
+  const registry = getRegistry();
+  const plugins = registry.listPlugins();
 
-  // If no FedEx credentials, return fallback estimates
-  if (!clientId || !clientSecret) {
-    logger.info('Shipping: no FedEx credentials, returning estimated rates');
+  // If no plugins with credentials, return fallback estimates
+  if (plugins.length === 0) {
+    logger.info('Shipping: no carrier plugins available, returning estimated rates');
     return getFallbackRates(params);
   }
 
   try {
-    logger.debug('Shipping: calling FedEx Rate API', { origin: params.originPostalCode });
-    const options = await getFedExRates(params);
+    const quoteRequest = toQuoteRequest(params);
 
-    if (options.length === 0) {
-      logger.warn('Shipping: FedEx returned no quotes, falling back to estimates');
+    // Gather quotes from all carrier plugins
+    const allQuotes: ShippingOption[] = [];
+    const errors: string[] = [];
+
+    for (const plugin of plugins) {
+      try {
+        logger.debug('Shipping: getting quotes from carrier', { carrier: plugin.carrierId });
+        const quotes = await plugin.getQuotes(quoteRequest);
+        allQuotes.push(...quotes.map(quoteToShippingOption));
+      } catch (err) {
+        errors.push(`${plugin.carrierId}: ${(err as Error).message}`);
+        logger.error('Shipping: carrier quote failed', {
+          carrier: plugin.carrierId,
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    if (allQuotes.length === 0) {
+      if (errors.length > 0) {
+        logger.warn('Shipping: all carriers failed, falling back to estimates', { errors });
+      } else {
+        logger.warn('Shipping: no quotes returned, falling back to estimates');
+      }
       return getFallbackRates(params);
     }
 
-    logger.info('Shipping: got FedEx quotes', { count: options.length });
-    return options;
+    // Sort by price ascending
+    allQuotes.sort((a, b) => a.priceCAD - b.priceCAD);
+
+    logger.info('Shipping: got multi-carrier quotes', { count: allQuotes.length });
+    return allQuotes;
   } catch (err) {
     logger.error('Shipping rate fetch failed', { error: (err as Error).message });
     return getFallbackRates(params);
