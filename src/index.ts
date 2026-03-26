@@ -192,7 +192,7 @@ async function main() {
     await prisma.$connect();
     logger.info('Database connected');
 
-    app.listen(config.port, () => {
+    app.listen(config.port, '0.0.0.0', () => {
       logger.info(`Agora API server running on port ${config.port}`, {
         env: config.nodeEnv,
         port: config.port,
