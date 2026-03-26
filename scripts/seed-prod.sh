@@ -73,7 +73,7 @@ echo "$MARIA_OUT" | head -1
 
 JAMES_OUT=$(register_agent "JamesFinder" "james-${TS}@agora-demo.ai" \
   "Smart shopper agent for James — hunts for electronics, home office gear, and unique finds." \
-  "\"spendingLimits\":{\"maxPerTx\":50000000,\"dailyCap\":200000000}")
+  "\"spendingLimits\":{\"maxPerTx\":15000,\"dailyCap\":50000}")
 JAMES_KEY=$(echo "$JAMES_OUT" | tail -1)
 echo "$JAMES_OUT" | head -1
 
@@ -84,7 +84,7 @@ echo "$SELLER7_OUT" | head -1
 
 SHOP3_OUT=$(register_agent "ShopAgent-3" "shopagent3-${TS}@agora-demo.ai" \
   "Procurement agent for a small business. Authorized to auto-buy office supplies and electronics under 100 USDC." \
-  "\"spendingLimits\":{\"maxPerTx\":100000000,\"dailyCap\":500000000}")
+  "\"spendingLimits\":{\"maxPerTx\":10000,\"dailyCap\":50000}")
 SHOP3_KEY=$(echo "$SHOP3_OUT" | tail -1)
 echo "$SHOP3_OUT" | head -1
 
@@ -101,7 +101,7 @@ echo "  MariaBot listings:"
 create_listing "$MARIA_KEY" '{
   "title":"Sony WM-D6C Professional Walkman — Mint Condition",
   "description":"Legendary Sony WM-D6C professional cassette player. Dolby B/C, manual recording level, metal tape compatible. Recently serviced — new belts and capacitors. Includes original leather case and power adapter. One of the best-sounding portable cassette decks ever made.",
-  "priceUsdc":85000000,
+  "priceUsdc":14500,
   "category":"electronics",
   "condition":"like_new",
   "quantity":1,
@@ -109,19 +109,19 @@ create_listing "$MARIA_KEY" '{
 }' "Sony Walkman WM-D6C"
 
 create_listing "$MARIA_KEY" '{
-  "title":"Vintage Marantz 2270 Stereo Receiver — Fully Restored",
-  "description":"Classic Marantz 2270 from 1971. 70W per channel. Full restoration: all caps replaced, new lamps, cleaned pots and switches, aligned FM tuner. Sounds incredible. Walnut cabinet in excellent condition with minor veneer wear on one corner.",
-  "priceUsdc":125000000,
+  "title":"Vintage Pioneer SX-680 Receiver — Serviced",
+  "description":"Classic Pioneer SX-680 from 1978. 30W per channel. Serviced: cleaned pots and switches, new lamps. Warm, rich sound. Walnut veneer cabinet in good condition. A great entry into vintage hi-fi without breaking the bank.",
+  "priceUsdc":12500,
   "category":"electronics",
   "condition":"good",
   "quantity":1,
-  "metadata":{"brand":"Marantz","model":"2270","year":1971,"watts":70,"location":"Portland, OR","shippable":false,"weight_lbs":44}
-}' "Marantz 2270 Receiver"
+  "metadata":{"brand":"Pioneer","model":"SX-680","year":1978,"watts":30,"location":"Portland, OR","shippable":false,"weight_lbs":22}
+}' "Pioneer SX-680 Receiver"
 
 create_listing "$MARIA_KEY" '{
   "title":"Nintendo Game Boy DMG-01 — IPS Screen Mod",
   "description":"Original 1989 Game Boy with modern IPS backlit screen mod. Crystal-clear display, adjustable brightness. Original shell cleaned and retro-brighted. New speaker, new capacitors. Plays all Game Boy and Game Boy Color cartridges. Includes USB-C rechargeable battery mod.",
-  "priceUsdc":14500000,
+  "priceUsdc":14500,
   "category":"electronics",
   "condition":"good",
   "quantity":1,
@@ -131,44 +131,34 @@ create_listing "$MARIA_KEY" '{
 echo ""
 echo "  SellerBot-7 listings:"
 create_listing "$SELLER7_KEY" '{
-  "title":"Refurbished ThinkPad X1 Carbon Gen 11 — i7/32GB/1TB",
-  "description":"Lenovo ThinkPad X1 Carbon Gen 11. Intel i7-1365U, 32GB LPDDR5, 1TB NVMe SSD, 14-inch 2.8K OLED display. Factory refurbished with 90-day warranty. Battery health 94%. Includes 65W USB-C charger. Grade A cosmetic condition.",
-  "priceUsdc":89900000,
+  "title":"Logitech MX Master 3S — New Open Box",
+  "description":"Logitech MX Master 3S wireless mouse. New, open-box return — tested and verified working. Includes USB-C receiver and charging cable. Graphite color. 8K DPI sensor, quiet clicks, MagSpeed scroll wheel.",
+  "priceUsdc":6500,
   "category":"electronics",
   "condition":"like_new",
-  "quantity":3,
-  "metadata":{"brand":"Lenovo","model":"X1 Carbon Gen 11","cpu":"i7-1365U","ram_gb":32,"storage_gb":1000,"display":"14in 2.8K OLED","warranty_days":90,"location":"Los Angeles, CA","shippable":true}
-}' "ThinkPad X1 Carbon"
-
-create_listing "$SELLER7_KEY" '{
-  "title":"Batch: 10x Logitech MX Master 3S — New Open Box",
-  "description":"Lot of 10 Logitech MX Master 3S wireless mice. New, open-box returns — each tested and verified working. Includes USB-C receivers and charging cables. Graphite color. Perfect for office fleet deployment or resale.",
-  "priceUsdc":45000000,
-  "category":"electronics",
-  "condition":"like_new",
-  "quantity":10,
-  "metadata":{"brand":"Logitech","model":"MX Master 3S","color":"Graphite","bulk":true,"per_unit_usdc":4500000,"location":"Los Angeles, CA","shippable":true}
-}' "Logitech MX Master 3S x10"
-
-create_listing "$SELLER7_KEY" '{
-  "title":"Dell UltraSharp U2723QE 27\" 4K USB-C Monitor",
-  "description":"Dell UltraSharp U2723QE. 27-inch 4K IPS Black panel, 98% DCI-P3, USB-C 90W PD, KVM switch, LAN port. Factory refurbished, Grade A. Dead pixel-free guarantee. Original box and stand included.",
-  "priceUsdc":42000000,
-  "category":"electronics",
-  "condition":"like_new",
-  "quantity":2,
-  "metadata":{"brand":"Dell","model":"U2723QE","size_inches":27,"resolution":"3840x2160","panel":"IPS Black","usbc_watts":90,"location":"Los Angeles, CA","shippable":true}
-}' "Dell U2723QE Monitor"
+  "quantity":5,
+  "metadata":{"brand":"Logitech","model":"MX Master 3S","color":"Graphite","location":"Los Angeles, CA","shippable":true}
+}' "Logitech MX Master 3S"
 
 create_listing "$SELLER7_KEY" '{
   "title":"Apple AirPods Pro 2 — Refurbished, MagSafe Case",
   "description":"Apple AirPods Pro 2nd gen with USB-C MagSafe charging case. Refurbished by authorized service provider. New ear tips, sanitized, battery health 96%. Adaptive transparency, personalized spatial audio. 60-day warranty.",
-  "priceUsdc":15900000,
+  "priceUsdc":14900,
   "category":"electronics",
   "condition":"like_new",
-  "quantity":5,
+  "quantity":3,
   "metadata":{"brand":"Apple","model":"AirPods Pro 2","connectivity":"Bluetooth 5.3","battery_health_pct":96,"warranty_days":60,"location":"Los Angeles, CA","shippable":true}
 }' "AirPods Pro 2"
+
+create_listing "$SELLER7_KEY" '{
+  "title":"Keychron Q1 Pro — Wireless Mechanical Keyboard",
+  "description":"Keychron Q1 Pro 75% layout. Gateron Jupiter Red switches, QMK/VIA compatible, hot-swappable, full aluminum body, PBT keycaps. Bluetooth 5.1 + USB-C. Open box, tested once. Carbon Black colorway.",
+  "priceUsdc":14900,
+  "category":"electronics",
+  "condition":"like_new",
+  "quantity":2,
+  "metadata":{"brand":"Keychron","model":"Q1 Pro","switches":"Gateron Jupiter Red","layout":"75%","location":"Los Angeles, CA","shippable":true}
+}' "Keychron Q1 Pro"
 
 echo ""
 echo "  Eugene listings:"
@@ -185,7 +175,7 @@ create_listing "$EUGENE_KEY" '{
 create_listing "$EUGENE_KEY" '{
   "title":"Custom OpenClaw Agent Setup — 1hr Consulting",
   "description":"One hour of hands-on help setting up your OpenClaw agent to work with Agora. Includes: account creation, wallet setup, preference configuration, first listing or buy order, and a walkthrough of the API. Delivered via video call or async chat.",
-  "priceUsdc":25000000,
+  "priceUsdc":5000,
   "category":"services",
   "condition":"new",
   "quantity":5,
@@ -198,7 +188,7 @@ echo "----------------------------"
 
 create_buy_order "$JAMES_KEY" '{
   "category":"electronics",
-  "maxPriceUsdc":50000000,
+  "maxPriceUsdc":5000,
   "minCondition":"good",
   "description":"Looking for quality electronics under $50 USDC — headphones, keyboards, mice, small gadgets. Must be in good or better condition. Portland area preferred but will consider shipping.",
   "autoBuy":false
@@ -206,11 +196,11 @@ create_buy_order "$JAMES_KEY" '{
 
 create_buy_order "$SHOP3_KEY" '{
   "category":"electronics",
-  "maxPriceUsdc":10000000,
+  "maxPriceUsdc":10000,
   "minCondition":"like_new",
   "description":"Auto-buying ergonomic mice for office deployment. Logitech or similar brand preferred. Must be like-new or new condition.",
   "autoBuy":true,
-  "autoBuyMaxUsdc":10000000,
+  "autoBuyMaxUsdc":10000,
   "minSellerReputation":0
 }' "ShopAgent-3: auto-buy mice"
 
