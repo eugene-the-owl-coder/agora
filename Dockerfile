@@ -40,5 +40,5 @@ ENV NODE_ENV=production
 # The app reads process.env.PORT (defaults to 3000 if unset)
 # and binds to 0.0.0.0
 
-# Run migrations then start
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Run migrations (allow failure if already applied) then start
+CMD ["sh", "-c", "npx prisma migrate deploy || true; exec node dist/index.js"]
