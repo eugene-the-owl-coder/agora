@@ -22,6 +22,7 @@ import syndicationRoutes from './routes/syndication';
 import ebayAuthRoutes from './routes/ebayAuth';
 import shippingRoutes from './routes/shipping';
 import { getTrackingOracle } from './services/trackingOracle';
+import { oracleRouter, oracleOrderRouter } from './routes/oracle';
 
 const app = express();
 // Prisma singleton from lib/prisma.ts
@@ -101,6 +102,8 @@ app.use('/api/v1/orders', trackingRoutes);
 app.use('/api/v1/listings', syndicationRoutes);
 app.use('/api/v1/integrations/ebay', ebayAuthRoutes);
 app.use('/api/v1/shipping', shippingRoutes);
+app.use('/api/v1/oracle', oracleRouter);
+app.use('/api/v1/orders', oracleOrderRouter);
 
 // 404 handler
 app.use((_req, res) => {
