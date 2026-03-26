@@ -15,6 +15,8 @@ import { dispatchWebhook } from '../services/webhook';
 import { validatePurchase } from '../services/spendingPolicy';
 import { logger } from '../utils/logger';
 import { validateOrderPrice, getAgentTier as getTrustTierInfo } from '../services/trustTier';
+import { sanitizeText } from '../utils/sanitize';
+import { negotiationRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -244,6 +246,25 @@ async function createOrderFromNegotiation(
 
   if (!negotiation) return;
 
+  // Guard: verify listing still exists and is purchasable
+  if (!negotiation.listing || negotiation.listing.status === 'delisted') {
+    logger.warn('Cannot create order from negotiation — listing unavailable', {
+      negotiationId,
+      listingId: negotiation.listingId,
+      listingStatus: negotiation.listing?.status,
+    });
+    return;
+  }
+
+  if (negotiation.listing.quantity <= 0) {
+    logger.warn('Cannot create order from negotiation — listing out of stock', {
+      negotiationId,
+      listingId: negotiation.listingId,
+      quantity: negotiation.listing.quantity,
+    });
+    return;
+  }
+
   await prisma.order.create({
     data: {
       listingId: negotiation.listingId,
@@ -274,6 +295,7 @@ async function createOrderFromNegotiation(
 
 router.post(
   '/listings/:id/negotiate',
+  negotiationRateLimiter,
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -355,6 +377,10 @@ router.post(
         );
       }
 
+      // Sanitize text fields in the offer
+      const sanitizedMessage = data.message ? sanitizeText(data.message, 2000) : undefined;
+      const sanitizedShippingMethod = data.shippingMethod ? sanitizeText(data.shippingMethod, 200) : undefined;
+
       // Create negotiation + first OFFER message in a transaction
       const negotiation = await prisma.$transaction(async (tx) => {
         const neg = await tx.negotiation.create({
@@ -380,8 +406,8 @@ router.post(
             payload: {
               amount: data.amount,
               currency: data.currency,
-              message: data.message,
-              shippingMethod: data.shippingMethod,
+              message: sanitizedMessage,
+              shippingMethod: sanitizedShippingMethod,
             },
           },
         });
@@ -562,6 +588,7 @@ router.get(
 
 router.post(
   '/negotiations/:id/message',
+  negotiationRateLimiter,
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -607,12 +634,40 @@ router.post(
         payloadValidator.parse(data.payload);
       }
 
+      // ── Edge case: listing deleted or delisted while negotiation active ──
+      const currentListing = await prisma.listing.findUnique({
+        where: { id: negotiation.listingId },
+        select: { id: true, status: true, quantity: true },
+      });
+
+      if (!currentListing || currentListing.status === 'delisted') {
+        // Auto-close the negotiation
+        await prisma.negotiation.update({
+          where: { id },
+          data: { status: 'rejected' },
+        });
+        throw new AppError(
+          'LISTING_NO_LONGER_AVAILABLE',
+          'The listing associated with this negotiation has been removed. Negotiation has been closed.',
+          410,
+        );
+      }
+
       // Type-specific business logic
       const lastMessage = negotiation.messages[0];
 
       switch (data.type) {
         case 'COUNTER': {
           const counterData = counterPayloadSchema.parse(data.payload);
+
+          // ── COUNTER amount 0 guard ──────────────────────────────
+          if (counterData.amount <= 0) {
+            throw new AppError(
+              'INVALID_COUNTER_AMOUNT',
+              'Counter amount must be greater than zero.',
+              400,
+            );
+          }
 
           // ── Price Sanity Guard (counter) ────────────────────────
           if (counterData.amount > 10_000_000) {
@@ -657,6 +712,14 @@ router.post(
             }
           }
 
+          // Sanitize counter message text
+          const sanitizedCounterPayload = {
+            ...data.payload as Record<string, unknown>,
+            message: (data.payload as any)?.message
+              ? sanitizeText((data.payload as any).message, 2000)
+              : undefined,
+          };
+
           // Create COUNTER message + update price
           const counterMsg = await prisma.$transaction(async (tx) => {
             const msg = await tx.negotiationMessage.create({
@@ -664,7 +727,7 @@ router.post(
                 negotiationId: id,
                 fromAgentId: req.agent!.id,
                 type: 'COUNTER',
-                payload: data.payload as Prisma.InputJsonValue,
+                payload: sanitizedCounterPayload as Prisma.InputJsonValue,
               },
             });
 
@@ -725,6 +788,15 @@ router.post(
             );
           }
 
+          // ── Listing quantity check before accepting ──
+          if (currentListing && currentListing.quantity <= 0) {
+            throw new AppError(
+              'LISTING_OUT_OF_STOCK',
+              'This listing is out of stock. The negotiation cannot be accepted.',
+              409,
+            );
+          }
+
           // ── Trust Tier: re-validate agreed price against both tiers ──
           const acceptTierCheck = await validateOrderPrice(
             negotiation.buyerAgentId,
@@ -739,23 +811,53 @@ router.post(
             );
           }
 
-          const acceptResult = await prisma.$transaction(async (tx) => {
-            const msg = await tx.negotiationMessage.create({
-              data: {
-                negotiationId: id,
-                fromAgentId: req.agent!.id,
-                type: 'ACCEPT',
-                payload: data.payload as Prisma.InputJsonValue,
-              },
-            });
+          // ── Race condition guard: atomically check+update status ──
+          // If two buyers ACCEPT simultaneously, only the first succeeds.
+          let acceptResult: any;
+          try {
+            acceptResult = await prisma.$transaction(async (tx) => {
+              // Re-fetch negotiation inside transaction to check current status
+              const freshNeg = await tx.negotiation.findUnique({
+                where: { id },
+                select: { status: true },
+              });
 
-            await tx.negotiation.update({
-              where: { id },
-              data: { status: 'accepted' },
-            });
+              if (!freshNeg || freshNeg.status !== 'active') {
+                throw new AppError(
+                  'NEGOTIATION_ALREADY_RESOLVED',
+                  'This negotiation has already been accepted, rejected, or withdrawn.',
+                  409,
+                );
+              }
 
-            return msg;
-          });
+              const msg = await tx.negotiationMessage.create({
+                data: {
+                  negotiationId: id,
+                  fromAgentId: req.agent!.id,
+                  type: 'ACCEPT',
+                  payload: data.payload as Prisma.InputJsonValue,
+                },
+              });
+
+              await tx.negotiation.update({
+                where: { id },
+                data: { status: 'accepted' },
+              });
+
+              return msg;
+            });
+          } catch (txErr) {
+            if (txErr instanceof AppError) throw txErr;
+            logger.error('Accept transaction failed', {
+              negotiationId: id,
+              error: (txErr as Error).message,
+            });
+            throw new AppError(
+              'ACCEPT_FAILED',
+              'Failed to accept negotiation. It may have been resolved by another party.',
+              409,
+            );
+          }
 
           // Create order
           await createOrderFromNegotiation(id, negotiation.currentPrice);

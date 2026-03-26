@@ -11,13 +11,20 @@ import { logger } from '../utils/logger';
 import { getReputationSummary } from '../services/reputation';
 import { getAgentRatings } from '../services/rating';
 import { validateListingPrice, validateActiveListings, getAgentTier as getTrustTierInfo } from '../services/trustTier';
+import { sanitizeText } from '../utils/sanitize';
+import { listingCreationRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
 // POST / — create listing
-router.post('/', authenticate, requireScope('list'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', listingCreationRateLimiter, authenticate, requireScope('list'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createListingSchema.parse(req.body);
+
+    // Sanitize text fields
+    data.title = sanitizeText(data.title, 200);
+    data.description = sanitizeText(data.description, 5000);
+    data.category = sanitizeText(data.category, 100);
 
     // ── Price Sanity Guard ──────────────────────────────────────
     // priceUsdc is in USDC cents (1500 = $15.00). Reject values that
@@ -247,6 +254,11 @@ router.put('/:id', authenticate, requireScope('list'), async (req: Request, res:
   try {
     const { id } = uuidParamSchema.parse(req.params);
     const data = updateListingSchema.parse(req.body);
+
+    // Sanitize text fields if provided
+    if (data.title) data.title = sanitizeText(data.title, 200);
+    if (data.description) data.description = sanitizeText(data.description, 5000);
+    if (data.category) data.category = sanitizeText(data.category, 100);
 
     const listing = await prisma.listing.findUnique({ where: { id } });
     if (!listing) {

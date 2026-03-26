@@ -8,15 +8,22 @@ import { generateWallet, validateWalletAddress } from '../services/wallet';
 import { registerSchema, loginApiKeySchema, loginWalletSchema } from '../validators/auth';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { strictRateLimiter } from '../middleware/rateLimiter';
+import { strictRateLimiter, registrationRateLimiter } from '../middleware/rateLimiter';
 import { logger } from '../utils/logger';
+import { sanitizeText } from '../utils/sanitize';
 
 const router = Router();
 
 // POST /register
-router.post('/register', strictRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/register', registrationRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = registerSchema.parse(req.body);
+
+    // Sanitize text fields
+    data.name = sanitizeText(data.name, 100);
+    if (data.profileDescription) {
+      data.profileDescription = sanitizeText(data.profileDescription, 1000);
+    }
 
     // Check email uniqueness
     const existing = await prisma.agent.findUnique({ where: { email: data.email } });

@@ -10,6 +10,7 @@ import { AppError } from '../middleware/errorHandler';
 import { uuidParamSchema } from '../validators/common';
 import { logger } from '../utils/logger';
 import { sanitizeImage, ImageSanitizationError } from '../services/imageSanitizer';
+import { imageUploadRateLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -104,6 +105,7 @@ function safeUnlink(filePath: string): void {
 
 router.post(
   '/:id/images',
+  imageUploadRateLimiter,
   authenticate,
   requireScope('list'),
   (req: Request, res: Response, next: NextFunction) => {

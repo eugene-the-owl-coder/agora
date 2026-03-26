@@ -19,6 +19,7 @@ import {
 } from '../services/collateral';
 import { logger } from '../utils/logger';
 import { validateOrderPrice } from '../services/trustTier';
+import { sanitizeText } from '../utils/sanitize';
 
 const router = Router();
 
@@ -207,46 +208,150 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       );
     }
 
-    // Create escrow (includes item price + both collaterals)
-    const escrow = await createEscrow(
-      req.agent!.walletAddress,
-      listing.agent.walletAddress,
-      listing.priceUsdc,
-    );
+    // ── Race condition guard: re-check listing availability inside transaction ──
+    // Between the initial check and escrow creation, another buyer may have purchased.
+    // We atomically decrement quantity to claim the item.
+    let order: any;
+    let escrow: Awaited<ReturnType<typeof createEscrow>>;
 
-    const order = await prisma.order.create({
-      data: {
+    try {
+      // Create escrow first — if this fails, no order is created
+      escrow = await createEscrow(
+        req.agent!.walletAddress,
+        listing.agent.walletAddress,
+        listing.priceUsdc,
+      );
+    } catch (escrowErr) {
+      // Classify escrow errors for the buyer
+      const errMsg = escrowErr instanceof Error ? escrowErr.message : String(escrowErr);
+
+      if (errMsg.includes('Insufficient USDC') || errMsg.includes('insufficient funds') || errMsg.includes('INSUFFICIENT_USDC')) {
+        throw new AppError(
+          'INSUFFICIENT_BUYER_FUNDS',
+          'Your wallet has insufficient USDC to fund this escrow. ' +
+          `Required: ${Number(listing.priceUsdc) + collateral.buyerCollateralUsdc} USDC (item + collateral).`,
+          400,
+        );
+      }
+
+      if (errMsg.includes('Insufficient SOL') || errMsg.includes('INSUFFICIENT_SOL')) {
+        throw new AppError(
+          'INSUFFICIENT_SOL',
+          'Your wallet needs SOL to pay transaction fees. Fund your wallet with a small amount of SOL.',
+          400,
+        );
+      }
+
+      if (errMsg.includes('RPC') || errMsg.includes('timeout') || errMsg.includes('fetch failed')) {
+        throw new AppError(
+          'ESCROW_NETWORK_ERROR',
+          'Unable to create escrow due to a network issue. Please try again in a few moments.',
+          503,
+        );
+      }
+
+      logger.error('Escrow creation failed', {
         listingId: listing.id,
-        buyerAgentId: req.agent!.id,
-        sellerAgentId: listing.agentId,
-        amountUsdc: listing.priceUsdc,
-        escrowAddress: escrow.escrowAddress,
-        escrowSignature: escrow.txSignature,
-        buyerCollateralUsdc: BigInt(collateral.buyerCollateralUsdc),
-        sellerCollateralUsdc: BigInt(collateral.sellerCollateralUsdc),
-        collateralRatio: collateral.collateralRatio,
-        status: 'created',
-        shippingInfo: shippingData,
-      },
-      include: {
-        listing: { select: { id: true, title: true, images: true } },
-        buyer: { select: { id: true, name: true } },
-        seller: { select: { id: true, name: true } },
-      },
-    });
+        buyerId: req.agent!.id,
+        error: errMsg,
+      });
 
-    // Create transaction records for item price + collateral deposits
-    await prisma.transaction.create({
-      data: {
-        orderId: order.id,
-        fromAgentId: req.agent!.id,
-        toAgentId: null,
-        amountUsdc: listing.priceUsdc,
-        txSignature: escrow.txSignature,
-        txType: 'escrow_fund',
-        status: 'pending',
-      },
-    });
+      throw new AppError(
+        'ESCROW_CREATION_FAILED',
+        'Failed to create escrow for this order. The order was not placed. Please try again.',
+        500,
+      );
+    }
+
+    // Escrow succeeded — now atomically create order + claim listing quantity
+    try {
+      order = await prisma.$transaction(async (tx) => {
+        // Re-fetch listing inside transaction to guard against race conditions
+        const freshListing = await tx.listing.findUnique({
+          where: { id: data.listingId },
+          select: { id: true, status: true, quantity: true },
+        });
+
+        if (!freshListing || freshListing.status !== 'active') {
+          throw new AppError(
+            'LISTING_UNAVAILABLE',
+            'This listing is no longer available for purchase. It may have been sold or delisted.',
+            409,
+          );
+        }
+
+        if (freshListing.quantity < 1) {
+          throw new AppError(
+            'OUT_OF_STOCK',
+            'This listing has been purchased by another buyer.',
+            409,
+          );
+        }
+
+        // Decrement quantity atomically
+        await tx.listing.update({
+          where: { id: data.listingId },
+          data: { quantity: { decrement: 1 } },
+        });
+
+        // Create the order
+        const newOrder = await tx.order.create({
+          data: {
+            listingId: listing.id,
+            buyerAgentId: req.agent!.id,
+            sellerAgentId: listing.agentId,
+            amountUsdc: listing.priceUsdc,
+            escrowAddress: escrow.escrowAddress,
+            escrowSignature: escrow.txSignature,
+            buyerCollateralUsdc: BigInt(collateral.buyerCollateralUsdc),
+            sellerCollateralUsdc: BigInt(collateral.sellerCollateralUsdc),
+            collateralRatio: collateral.collateralRatio,
+            status: 'created',
+            shippingInfo: shippingData,
+          },
+          include: {
+            listing: { select: { id: true, title: true, images: true } },
+            buyer: { select: { id: true, name: true } },
+            seller: { select: { id: true, name: true } },
+          },
+        });
+
+        // Create transaction record
+        await tx.transaction.create({
+          data: {
+            orderId: newOrder.id,
+            fromAgentId: req.agent!.id,
+            toAgentId: null,
+            amountUsdc: listing.priceUsdc,
+            txSignature: escrow.txSignature,
+            txType: 'escrow_fund',
+            status: 'pending',
+          },
+        });
+
+        return newOrder;
+      });
+    } catch (txErr) {
+      // If the DB transaction failed but escrow was created, attempt refund
+      if (escrow && escrow.escrowAddress && !escrow.txSignature.startsWith('STUB_')) {
+        logger.warn('Order creation failed after escrow — attempting refund', {
+          escrowAddress: escrow.escrowAddress,
+          buyerWallet: req.agent!.walletAddress,
+        });
+        try {
+          await refundEscrow(escrow.escrowAddress, req.agent!.walletAddress!);
+          logger.info('Escrow refunded after failed order creation');
+        } catch (refundErr) {
+          logger.error('CRITICAL: Failed to refund escrow after order creation failure', {
+            escrowAddress: escrow.escrowAddress,
+            error: (refundErr as Error).message,
+          });
+          // This is a critical state — escrow funds are locked
+          // The error thrown below will alert the buyer
+        }
+      }
+      throw txErr;
+    }
 
     logger.info('Order created', { orderId: order.id, listingId: listing.id });
 
@@ -522,11 +627,13 @@ router.post('/:id/dispute', authenticate, async (req: Request, res: Response, ne
       throw new AppError('INVALID_STATUS', `Order cannot be disputed from status: ${order.status}`, 400);
     }
 
+    const sanitizedReason = sanitizeText(data.reason, 2000);
+
     const updated = await prisma.order.update({
       where: { id },
       data: {
         status: 'disputed',
-        disputeReason: data.reason,
+        disputeReason: sanitizedReason,
       },
     });
 

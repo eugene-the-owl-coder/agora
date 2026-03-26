@@ -74,13 +74,49 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({
+// Health check (enhanced with subsystem status)
+app.get('/health', async (_req, res) => {
+  const checks: Record<string, unknown> = {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-  });
+  };
+
+  // Database connectivity check
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = { status: 'connected' };
+  } catch (err) {
+    checks.database = { status: 'disconnected', error: (err as Error).message };
+    checks.status = 'degraded';
+  }
+
+  // Oracle status
+  try {
+    const oracle = getTrackingOracle();
+    const oracleStatus = oracle.getStatus();
+    checks.oracle = {
+      status: oracleStatus.isRunning ? 'running' : 'stopped',
+      lastPollTime: oracleStatus.lastPollTime,
+      activePollCount: oracleStatus.activePollCount,
+      carriers: oracleStatus.carriers,
+    };
+  } catch {
+    checks.oracle = { status: 'unavailable' };
+  }
+
+  // Active orders count
+  try {
+    const activeOrders = await prisma.order.count({
+      where: { status: { in: ['created', 'funded', 'fulfilled'] } },
+    });
+    checks.activeOrders = activeOrders;
+  } catch {
+    checks.activeOrders = null;
+  }
+
+  const httpStatus = checks.status === 'ok' ? 200 : 503;
+  res.status(httpStatus).json(checks);
 });
 
 // Platform info
