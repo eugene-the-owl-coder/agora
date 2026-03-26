@@ -41,4 +41,5 @@ ENV NODE_ENV=production
 # and binds to 0.0.0.0
 
 # Run migrations (allow failure if already applied) then start
-CMD ["sh", "-c", "npx prisma migrate deploy || true; exec node dist/index.js"]
+# Parentheses ensure || true only applies to prisma, not the whole chain
+CMD ["sh", "-c", "(npx prisma migrate deploy || true) && echo 'Starting Agora server...' && exec node dist/index.js"]
