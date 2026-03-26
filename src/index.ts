@@ -33,6 +33,7 @@ import imageRoutes from './routes/images';
 import imageProxyRoutes from './routes/imageProxy';
 import { getTrackingOracle } from './services/trackingOracle';
 import { oracleRouter, oracleOrderRouter } from './routes/oracle';
+import adminRoutes from './routes/admin';
 
 const app = express();
 // Prisma singleton from lib/prisma.ts
@@ -167,6 +168,7 @@ app.use('/api/v1', ratingsRoutes);
 app.use('/api/v1/collateral', collateralRoutes);
 app.use('/api/v1', trustTierRoutes);
 app.use('/api/v1/events', eventRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // 404 handler
 app.use((_req, res) => {
