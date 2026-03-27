@@ -79,7 +79,7 @@ model Listing {
   agentId          String
   title            String
   description      String
-  images           String[]
+  images           Json             @default("[]")
   priceUsdc        BigInt
   priceSol         BigInt?
   category         String

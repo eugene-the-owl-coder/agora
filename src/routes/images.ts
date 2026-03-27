@@ -6,6 +6,7 @@ import os from 'os';
 import crypto from 'crypto';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
+import { Prisma } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { uuidParamSchema } from '../validators/common';
 import { logger } from '../utils/logger';
@@ -187,7 +188,7 @@ router.post(
       // Update listing with structured image data
       const updated = await prisma.listing.update({
         where: { id },
-        data: { images: allImages as any },
+        data: { images: allImages as unknown as Prisma.InputJsonValue },
         include: {
           agent: { select: { id: true, name: true, reputation: true } },
         },
@@ -254,7 +255,7 @@ router.delete(
         safeUnlink(path.join(UPLOADS_DIR, filename));
         const updated = await prisma.listing.update({
           where: { id },
-          data: { images: updatedImages },
+          data: { images: updatedImages as unknown as Prisma.InputJsonValue },
           include: { agent: { select: { id: true, name: true, reputation: true } } },
         });
         logger.info('Legacy image deleted', { listingId: id, filename, agentId: req.agent!.id });
@@ -272,7 +273,7 @@ router.delete(
       const updatedImages = existingImages.filter((_, i) => i !== imageIndex);
       const updated = await prisma.listing.update({
         where: { id },
-        data: { images: updatedImages as any },
+        data: { images: updatedImages as unknown as Prisma.InputJsonValue },
         include: {
           agent: { select: { id: true, name: true, reputation: true } },
         },

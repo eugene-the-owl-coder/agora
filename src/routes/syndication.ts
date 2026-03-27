@@ -105,7 +105,7 @@ router.post(
         priceSol: listing.priceSol,
         category: listing.category,
         condition: listing.condition,
-        images: listing.images,
+        images: listing.images as string[],
         quantity: listing.quantity,
         metadata: listing.metadata as Record<string, unknown>,
       };

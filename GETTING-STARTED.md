@@ -177,20 +177,78 @@ curl -X POST https://web-production-13a99.up.railway.app/api/v1/orders \
 
 > **Privacy:** Shipping addresses are only visible to the buyer and seller. Other viewers see only city + country.
 
+### Step 5b: Place a Local Meetup Order
+
+For in-person exchanges, use `fulfillmentType: "local_meetup"` instead of a shipping address:
+
+```bash
+curl -X POST https://web-production-13a99.up.railway.app/api/v1/orders \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: agora_ak_BUYER_KEY" \
+  -d '{
+    "listingId": "LISTING_ID",
+    "fulfillmentType": "local_meetup",
+    "meetupArea": "Downtown SF - Union Square",
+    "meetupTime": "2026-04-01T14:00:00Z"
+  }'
+```
+
+The response includes a `meetupCode` (6-digit code) visible **only to the buyer**. The seller never sees this code in their order view — the buyer must share it in person to prove handoff.
+
+### Step 5c: Local Meetup Lifecycle
+
+Local meetup orders follow: `created → funded → handoff → completed`
+
+**1. Seller hands over the item:**
+
+After meeting in person, the buyer shares the `meetupCode`. The seller submits it:
+
+```bash
+curl -X POST https://web-production-13a99.up.railway.app/api/v1/orders/ORDER_ID/handoff \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: agora_ak_SELLER_KEY" \
+  -d '{"meetupCode": "483729"}'
+```
+
+**2. Buyer confirms receipt:**
+
+```bash
+curl -X POST https://web-production-13a99.up.railway.app/api/v1/orders/ORDER_ID/confirm \
+  -H "X-API-Key: agora_ak_BUYER_KEY"
+```
+
+This releases escrow to the seller.
+
+**3. No-show (either party):**
+
+If the other party doesn't show up:
+
+```bash
+curl -X POST https://web-production-13a99.up.railway.app/api/v1/orders/ORDER_ID/no-show \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: agora_ak_YOUR_KEY" \
+  -d '{"reason": "Waited 30 minutes, other party did not arrive"}'
+```
+
 ## Step 6: Order Lifecycle
 
-Orders follow this flow: `pending` → `funded` → `fulfilled` → `confirmed` → `settled`
+**Shipped orders:** `created → funded → fulfilled → completed`
 
 ```bash
 # Seller fulfills (marks shipped)
 curl -X POST https://web-production-13a99.up.railway.app/api/v1/orders/ORDER_ID/fulfill \
+  -H "Content-Type: application/json" \
   -H "X-API-Key: agora_ak_SELLER_KEY" \
-  -d '{"trackingNumber": "1Z999...", "carrier": "ups"}'
+  -d '{"trackingNumber": "1Z999..."}'
 
 # Buyer confirms receipt → triggers escrow release
 curl -X POST https://web-production-13a99.up.railway.app/api/v1/orders/ORDER_ID/confirm \
   -H "X-API-Key: agora_ak_BUYER_KEY"
 ```
+
+**Local meetup orders:** `created → funded → handoff (seller_handed_over) → completed`
+
+See Step 5c above for the full meetup flow.
 
 ---
 
@@ -328,8 +386,10 @@ curl -X POST https://web-production-13a99.up.railway.app/api/v1/buy-orders \
 | GET | `/images/proxy/:listingId/:filename` | No | Secure image proxy (rate limited) |
 | POST | `/orders` | Yes | Place order |
 | GET | `/orders` | Yes | List your orders |
-| POST | `/orders/:id/fulfill` | Yes | Mark fulfilled |
-| POST | `/orders/:id/confirm` | Yes | Confirm receipt |
+| POST | `/orders/:id/fulfill` | Yes | Mark fulfilled (shipped orders — body: trackingNumber) |
+| POST | `/orders/:id/handoff` | Yes | Local meetup handoff (seller provides meetupCode) |
+| POST | `/orders/:id/confirm` | Yes | Confirm receipt → escrow released |
+| POST | `/orders/:id/no-show` | Yes | Mark no-show for local meetup |
 | POST | `/orders/:id/cancel` | Yes | Cancel order |
 | POST | `/orders/:id/dispute` | Yes | Open dispute |
 | POST | `/buy-orders` | Yes | Create buy order |

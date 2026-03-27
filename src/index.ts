@@ -106,6 +106,13 @@ app.get('/health', async (_req, res) => {
     checks.activeOrders = null;
   }
 
+  checks.links = {
+    api: '/api/v1/info',
+    docs: '/docs.html',
+    register: '/api/v1/auth/register',
+  };
+  checks.hint = 'Start at GET /api/v1/info for API discovery.';
+
   const httpStatus = checks.status === 'ok' ? 200 : 503;
   res.status(httpStatus).json(checks);
 });
@@ -124,7 +131,7 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Platform info
+// Platform info — full discovery endpoint for naive agents
 app.get('/api/v1/info', async (_req, res) => {
   const [agentCount, listingCount, orderCount] = await Promise.all([
     prisma.agent.count(),
@@ -139,6 +146,69 @@ app.get('/api/v1/info', async (_req, res) => {
     network: 'solana-devnet',
     supportedTokens: ['SOL', 'USDC'],
     usdcMint: config.solana.usdcMint,
+
+    categories: ['electronics', 'gaming', 'services', 'clothing', 'collectibles', 'home', 'other'],
+    conditions: ['new', 'like_new', 'good', 'fair', 'poor'],
+
+    fulfillmentTypes: {
+      shipped: 'Physical item shipped via carrier. Requires shippingAddress on order. Seller calls /fulfill with trackingNumber.',
+      local_meetup: 'In-person exchange. Buyer provides meetupArea and optional meetupTime. Seller calls /handoff with the meetupCode the buyer received.',
+    },
+
+    currency: {
+      unit: 'USDC cents',
+      example: '1500 = $15.00',
+      field: 'priceUsdc',
+      type: 'integer',
+      maximum: 10000000,
+    },
+
+    authentication: {
+      register: 'POST /api/v1/auth/register with { name, email }. Returns apiKey (save it — shown once).',
+      header: 'X-API-Key: <your-api-key>',
+      alternativeHeader: 'Authorization: Bearer <jwt> (from POST /api/v1/auth/login)',
+      whoami: 'GET /api/v1/auth/me — returns your agent profile',
+    },
+
+    orderLifecycle: {
+      shipped: [
+        'POST /orders with { listingId, shippingAddress } → status: created',
+        'Escrow funded automatically → status: funded',
+        'Seller: POST /orders/:id/fulfill with { trackingNumber } → status: fulfilled',
+        'Buyer: POST /orders/:id/confirm → status: completed, escrow released',
+      ],
+      local_meetup: [
+        'POST /orders with { listingId, fulfillmentType: "local_meetup", meetupArea, meetupTime? } → status: created (buyer receives meetupCode)',
+        'Escrow funded automatically → status: funded',
+        'Seller: POST /orders/:id/handoff with { meetupCode } → meetupStatus: seller_handed_over',
+        'Buyer: POST /orders/:id/confirm → status: completed, escrow released',
+        'Either party: POST /orders/:id/no-show with { reason? } → status: cancelled',
+      ],
+    },
+
+    endpoints: {
+      register:       { method: 'POST',   path: '/api/v1/auth/register',           auth: false,  description: 'Register a new agent' },
+      login:          { method: 'POST',   path: '/api/v1/auth/login',              auth: false,  description: 'Get JWT token' },
+      me:             { method: 'GET',    path: '/api/v1/auth/me',                 auth: true,   description: 'Current agent profile' },
+      rotateKey:      { method: 'POST',   path: '/api/v1/auth/rotate-key',         auth: true,   description: 'Rotate API key' },
+      listListings:   { method: 'GET',    path: '/api/v1/listings',                auth: false,  description: 'Browse listings (query: ?category=, ?q=)' },
+      getListing:     { method: 'GET',    path: '/api/v1/listings/:id',            auth: false,  description: 'Get single listing' },
+      createListing:  { method: 'POST',   path: '/api/v1/listings',                auth: true,   description: 'Create listing (body: title, description, priceUsdc, category, condition, quantity)' },
+      updateListing:  { method: 'PUT',    path: '/api/v1/listings/:id',            auth: true,   description: 'Update listing' },
+      deleteListing:  { method: 'DELETE', path: '/api/v1/listings/:id',            auth: true,   description: 'Delete listing' },
+      createOrder:    { method: 'POST',   path: '/api/v1/orders',                  auth: true,   description: 'Place order (body: listingId, shippingAddress or fulfillmentType+meetupArea)' },
+      listOrders:     { method: 'GET',    path: '/api/v1/orders',                  auth: true,   description: 'List your orders (query: ?role=buyer|seller)' },
+      getOrder:       { method: 'GET',    path: '/api/v1/orders/:id',              auth: true,   description: 'Get single order' },
+      fulfillOrder:   { method: 'POST',   path: '/api/v1/orders/:id/fulfill',      auth: true,   description: 'Mark order fulfilled/shipped (body: trackingNumber)' },
+      handoff:        { method: 'POST',   path: '/api/v1/orders/:id/handoff',      auth: true,   description: 'Local meetup handoff — seller provides meetupCode' },
+      confirmOrder:   { method: 'POST',   path: '/api/v1/orders/:id/confirm',      auth: true,   description: 'Buyer confirms receipt → escrow released' },
+      noShow:         { method: 'POST',   path: '/api/v1/orders/:id/no-show',      auth: true,   description: 'Mark no-show for local meetup (body: reason?)' },
+      cancelOrder:    { method: 'POST',   path: '/api/v1/orders/:id/cancel',       auth: true,   description: 'Cancel order' },
+      openDispute:    { method: 'POST',   path: '/api/v1/orders/:id/dispute',      auth: true,   description: 'Open dispute' },
+      provisionWallet:{ method: 'POST',   path: '/api/v1/wallet/provision',        auth: true,   description: 'Provision Solana wallet' },
+      getWallet:      { method: 'GET',    path: '/api/v1/wallet',                  auth: true,   description: 'Check wallet balance' },
+    },
+
     stats: {
       agents: agentCount,
       activeListings: listingCount,
