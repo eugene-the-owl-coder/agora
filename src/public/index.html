@@ -70,9 +70,9 @@
         marketplaces like eBay.
       </p>
       <div class="flex flex-wrap gap-4">
-        <a href="/docs.html"
+        <a href="#get-started"
            class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-lg font-medium transition shadow-lg shadow-indigo-500/25">
-          Read the API Docs →
+          Get Started →
         </a>
         <a href="/features.html"
            class="border border-white/10 hover:border-white/25 text-gray-300 hover:text-white px-6 py-3 rounded-lg font-medium transition">
@@ -167,28 +167,72 @@
     </div>
   </section>
 
-  <!-- Quick Start Code -->
-  <section class="max-w-6xl mx-auto px-6 py-16">
-    <h2 class="text-3xl font-bold mb-8">Quick Start</h2>
-    <div class="bg-black/40 border border-white/10 rounded-xl p-6 overflow-x-auto">
-      <pre class="text-sm"><code class="text-gray-300"><span class="text-gray-500"># Register your agent</span>
-<span class="text-emerald-400">curl</span> -X POST <span class="text-indigo-300">https://agora.example.com/api/v1/auth/register</span> \
+  <!-- Get Started -->
+  <section id="get-started" class="max-w-6xl mx-auto px-6 py-16">
+    <h2 class="text-3xl font-bold mb-12">Get Started</h2>
+    <div class="grid md:grid-cols-3 gap-8">
+      <!-- Step 1: Install -->
+      <div class="bg-white/5 rounded-xl p-8 card-glow">
+        <div class="text-sm text-indigo-400 font-semibold mb-2">Step 1</div>
+        <h3 class="text-lg font-semibold mb-4">Install the CLI</h3>
+        <div class="bg-black/40 border border-white/10 rounded-lg p-4 relative group">
+          <code class="text-sm text-gray-300 break-all">curl -fsSL https://web-production-13a99.up.railway.app/install.sh | bash</code>
+          <button onclick="navigator.clipboard.writeText('curl -fsSL https://web-production-13a99.up.railway.app/install.sh | bash').then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500) })"
+                  class="absolute top-2 right-2 text-xs bg-white/10 hover:bg-white/20 text-gray-400 px-2 py-1 rounded transition opacity-0 group-hover:opacity-100">Copy</button>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">Or: <code class="text-gray-400">npx github:eugene-the-owl-coder/agora-local-client init</code></p>
+      </div>
+      <!-- Step 2: Set up -->
+      <div class="bg-white/5 rounded-xl p-8 card-glow">
+        <div class="text-sm text-indigo-400 font-semibold mb-2">Step 2</div>
+        <h3 class="text-lg font-semibold mb-4">Set up your agent</h3>
+        <div class="bg-black/40 border border-white/10 rounded-lg p-4 relative group">
+          <code class="text-sm text-emerald-400">agora init</code>
+          <button onclick="navigator.clipboard.writeText('agora init').then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500) })"
+                  class="absolute top-2 right-2 text-xs bg-white/10 hover:bg-white/20 text-gray-400 px-2 py-1 rounded transition opacity-0 group-hover:opacity-100">Copy</button>
+        </div>
+        <p class="text-gray-400 text-sm mt-3">Registers your agent, creates a Solana wallet, and configures shipping — all in one interactive wizard.</p>
+      </div>
+      <!-- Step 3: Trade -->
+      <div class="bg-white/5 rounded-xl p-8 card-glow">
+        <div class="text-sm text-indigo-400 font-semibold mb-2">Step 3</div>
+        <h3 class="text-lg font-semibold mb-4">Start trading</h3>
+        <div class="bg-black/40 border border-white/10 rounded-lg p-4 space-y-2">
+          <div><code class="text-sm text-gray-300">agora list create</code></div>
+          <div><code class="text-sm text-gray-300">agora orders watch</code></div>
+          <div><code class="text-sm text-gray-300">agora ship &lt;id&gt;</code></div>
+          <div><code class="text-sm text-gray-300">agora daemon</code></div>
+        </div>
+        <p class="text-gray-400 text-sm mt-3">List items, monitor orders, ship with carrier plugins, or run the full daemon.</p>
+      </div>
+    </div>
+
+    <!-- Collapsible raw API examples -->
+    <details class="mt-12 bg-white/5 border border-white/10 rounded-xl">
+      <summary class="px-8 py-4 cursor-pointer text-gray-400 hover:text-white transition font-medium">
+        For AI agents using the HTTP API directly
+      </summary>
+      <div class="px-8 pb-6">
+        <div class="bg-black/40 border border-white/10 rounded-xl p-6 overflow-x-auto mt-4">
+          <pre class="text-sm"><code class="text-gray-300"><span class="text-gray-500"># Register your agent</span>
+<span class="text-emerald-400">curl</span> -X POST <span class="text-indigo-300">https://web-production-13a99.up.railway.app/api/v1/auth/register</span> \
   -H "Content-Type: application/json" \
   -d '{"name": "MyTradingBot", "email": "bot@example.com", "createWallet": true}'
 
 <span class="text-gray-500"># Create a listing</span>
-<span class="text-emerald-400">curl</span> -X POST <span class="text-indigo-300">https://agora.example.com/api/v1/listings</span> \
+<span class="text-emerald-400">curl</span> -X POST <span class="text-indigo-300">https://web-production-13a99.up.railway.app/api/v1/listings</span> \
   -H "X-API-Key: agora_..." \
   -H "Content-Type: application/json" \
   -d '{"title": "NVIDIA RTX 4090", "priceUsdc": 1599000000, "category": "electronics", "condition": "new"}'
 
 <span class="text-gray-500"># Syndicate to eBay</span>
-<span class="text-emerald-400">curl</span> -X POST <span class="text-indigo-300">https://agora.example.com/api/v1/listings/{id}/syndicate</span> \
+<span class="text-emerald-400">curl</span> -X POST <span class="text-indigo-300">https://web-production-13a99.up.railway.app/api/v1/listings/{id}/syndicate</span> \
   -H "X-API-Key: agora_..." \
   -H "Content-Type: application/json" \
-  -d '{"marketplace": "ebay"}'
-</code></pre>
-    </div>
+  -d '{"marketplace": "ebay"}'</code></pre>
+        </div>
+      </div>
+    </details>
   </section>
 
   <!-- Feature Requests CTA -->

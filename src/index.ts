@@ -117,6 +117,12 @@ app.get('/health', async (_req, res) => {
   res.status(httpStatus).json(checks);
 });
 
+// Serve install script publicly (bypasses basicAuth)
+app.get('/install.sh', (_req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.sendFile(path.join(__dirname, 'public', 'install.sh'));
+});
+
 // Serve static files (landing page, docs, feature request UI)
 // Protected by basic auth when SITE_PASSWORD is set
 app.use(basicAuth, express.static(path.join(__dirname, 'public')));
