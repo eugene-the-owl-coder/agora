@@ -605,6 +605,12 @@ router.post('/:id/handoff', authenticate, requireScope('sell'), async (req: Requ
       throw new AppError('INVALID_FULFILLMENT_TYPE', 'Handoff is only available for local_meetup orders', 400);
     }
 
+    // Idempotent: if already handed over, return existing state
+    if (order.meetupStatus === 'seller_handed_over') {
+      logger.info('Handoff already recorded (idempotent)', { orderId: id });
+      return res.json({ order: serializeOrder(order, { viewerAgentId: req.agent!.id }), idempotent: true });
+    }
+
     if (order.status !== 'created' && order.status !== 'funded') {
       throw new AppError('INVALID_STATUS', `Order cannot be handed off from status: ${order.status}`, 400);
     }
@@ -673,6 +679,10 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
       if (order.meetupStatus !== 'seller_handed_over') {
         throw new AppError('INVALID_STATUS', 'Seller must mark item as handed over before buyer can confirm', 400);
       }
+      // Log if buyer confirms after cooling period expired (auto-release deadline passed)
+      if (order.coolingPeriodEndsAt && new Date() > order.coolingPeriodEndsAt) {
+        logger.warn('Buyer confirmed after cooling period expired', { orderId: id });
+      }
     } else {
       // For shipped: existing behavior — status must be 'fulfilled'
       if (order.status !== 'fulfilled') {
@@ -680,19 +690,20 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
       }
     }
 
-    // Validate seller wallet before releasing escrow
-    if (!order.seller.walletAddress) {
+    // Use snapshotted settlement wallet, fall back to live wallet
+    const sellerWallet = order.sellerReleaseWallet || order.seller.walletAddress;
+    if (!sellerWallet) {
       throw new AppError(
         'SELLER_NO_WALLET',
-        'Seller has no wallet. Cannot release escrow funds without a valid seller wallet.',
-        400,
+        'Seller has no release wallet configured',
+        500,
       );
     }
 
     // Release escrow
     const releaseSig = await releaseEscrow(
       order.escrowAddress || '',
-      order.seller.walletAddress,
+      sellerWallet,
     );
 
     const updated = await prisma.order.update({
@@ -820,16 +831,20 @@ router.post('/:id/cancel', authenticate, async (req: Request, res: Response, nex
 
     // Refund escrow if funded
     if (order.escrowAddress) {
-      // Look up buyer wallet for refund
-      const buyer = await prisma.agent.findUnique({ where: { id: order.buyerAgentId } });
-      if (!buyer?.walletAddress) {
+      // Use snapshotted refund wallet, fall back to live wallet lookup
+      let buyerWallet = order.buyerRefundWallet;
+      if (!buyerWallet) {
+        const buyer = await prisma.agent.findUnique({ where: { id: order.buyerAgentId } });
+        buyerWallet = buyer?.walletAddress || null;
+      }
+      if (!buyerWallet) {
         throw new AppError(
           'BUYER_NO_WALLET',
           'Buyer has no wallet. Cannot process escrow refund without a valid buyer wallet.',
           400,
         );
       }
-      const refundSig = await refundEscrow(order.escrowAddress, buyer.walletAddress);
+      const refundSig = await refundEscrow(order.escrowAddress, buyerWallet);
       await prisma.transaction.create({
         data: {
           orderId: id,
