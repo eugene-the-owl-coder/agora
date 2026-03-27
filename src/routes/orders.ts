@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema, handoffSchema, noShowSchema, type ShippingAddress } from '../validators/orders';
+import { createOrderSchema, fulfillOrderSchema, listOrdersSchema, handoffSchema, noShowSchema, type ShippingAddress } from '../validators/orders';
 import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { executeSettlement } from '../services/settlement';
@@ -770,44 +770,6 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
     dispatchWebhook('listing.sold', { listingId: order.listingId, orderId: id }).catch(() => {});
 
     logger.info('Order completed', { orderId: id });
-    res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /:id/dispute — open dispute
-router.post('/:id/dispute', authenticate, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { id } = uuidParamSchema.parse(req.params);
-    const data = disputeOrderSchema.parse(req.body);
-
-    const order = await prisma.order.findUnique({ where: { id } });
-    if (!order) {
-      throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
-    }
-
-    if (order.buyerAgentId !== req.agent!.id && order.sellerAgentId !== req.agent!.id) {
-      throw new AppError('FORBIDDEN', 'Only buyer or seller can dispute this order', 403);
-    }
-
-    if (order.status === 'completed' || order.status === 'cancelled' || order.status === 'refunded') {
-      throw new AppError('INVALID_STATUS', `Order cannot be disputed from status: ${order.status}`, 400);
-    }
-
-    const sanitizedReason = sanitizeText(data.reason, 2000);
-
-    const updated = await prisma.order.update({
-      where: { id },
-      data: {
-        status: 'disputed',
-        disputeReason: sanitizedReason,
-      },
-    });
-
-    dispatchWebhook('order.disputed', { orderId: id, reason: data.reason }).catch(() => {});
-
-    logger.info('Order disputed', { orderId: id });
     res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
   } catch (err) {
     next(err);

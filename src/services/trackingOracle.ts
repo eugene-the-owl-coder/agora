@@ -15,6 +15,7 @@ import { createCarrierRegistry, CarrierRegistry, TrackingResult } from './carrie
 import { markDeliveredOnChain, releaseEscrow } from './escrow';
 import { logger } from '../utils/logger';
 import { emitOrderDelivered, emitOrderCompleted } from './events';
+import { recordCleanTransaction } from './rating';
 import { config } from '../config';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -149,6 +150,9 @@ export class TrackingOracle {
       this.processBuyerTimeoutReleases().catch((err) => {
         logger.error('Buyer timeout release check failed', { error: (err as Error).message });
       });
+      this.processMeetupAutoReleases().catch((err) => {
+        logger.error('Meetup auto-release check failed', { error: (err as Error).message });
+      });
     }, GRACE_CHECK_INTERVAL_MS);
 
     // Also run grace period check immediately
@@ -164,6 +168,11 @@ export class TrackingOracle {
     // Run buyer timeout check immediately too
     this.processBuyerTimeoutReleases().catch((err) => {
       logger.error('Initial buyer timeout release check failed', { error: (err as Error).message });
+    });
+
+    // Run meetup auto-release check immediately too
+    this.processMeetupAutoReleases().catch((err) => {
+      logger.error('Initial meetup auto-release check failed', { error: (err as Error).message });
     });
   }
 
@@ -574,6 +583,145 @@ export class TrackingOracle {
           error: (err as Error).message,
         });
       }
+    }
+  }
+
+  // ── Meetup Cooling Period Auto-Release ─────────────────────────────
+
+  /**
+   * Process meetup cooling period auto-releases.
+   * Finds all local_meetup orders where:
+   *   - seller has handed over the item
+   *   - cooling period has expired
+   *   - buyer did not dispute within the cooling window
+   * For each: release escrow → mark completed.
+   */
+  async processMeetupAutoReleases(): Promise<void> {
+    logger.debug('Checking for meetup cooling period auto-releases');
+
+    const eligibleOrders = await prisma.order.findMany({
+      where: {
+        fulfillmentType: 'local_meetup',
+        meetupStatus: 'seller_handed_over',
+        coolingPeriodEndsAt: { not: null, lte: new Date() },
+        disputeReason: null,
+        dispute: null,
+      },
+      include: {
+        seller: { select: { walletAddress: true } },
+        listing: { select: { id: true, title: true } },
+      },
+    });
+
+    if (eligibleOrders.length === 0) {
+      logger.debug('No meetup orders eligible for cooling period auto-release');
+      return;
+    }
+
+    logger.info(`Processing ${eligibleOrders.length} meetup orders for cooling period auto-release`);
+
+    for (const order of eligibleOrders) {
+      try {
+        await this.releaseMeetupOrder(order);
+      } catch (err) {
+        logger.error('Failed to auto-release meetup order', {
+          orderId: order.id,
+          error: (err as Error).message,
+        });
+      }
+    }
+  }
+
+  /**
+   * Release escrow for a single meetup order after cooling period expires.
+   */
+  private async releaseMeetupOrder(order: any): Promise<void> {
+    const sellerWallet = order.seller?.walletAddress;
+    if (!sellerWallet) {
+      logger.warn('No seller wallet for meetup order — cannot release escrow', {
+        orderId: order.id,
+      });
+      return;
+    }
+
+    if (!order.escrowAddress) {
+      logger.warn('No escrow address for meetup order — marking completed without on-chain release', {
+        orderId: order.id,
+      });
+
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'completed',
+          meetupStatus: 'buyer_confirmed',
+          resolvedAt: new Date(),
+        },
+      });
+      return;
+    }
+
+    logger.info('Releasing escrow after meetup cooling period', {
+      orderId: order.id,
+      escrowAddress: order.escrowAddress,
+      coolingPeriodEndsAt: order.coolingPeriodEndsAt?.toISOString(),
+    });
+
+    try {
+      const txSignature = await releaseEscrow(
+        order.escrowAddress,
+        sellerWallet,
+        order.id,
+      );
+
+      // Update order to completed
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          status: 'completed',
+          meetupStatus: 'buyer_confirmed',
+          resolvedAt: new Date(),
+        },
+      });
+
+      // Record transaction (skip if stub signature)
+      if (txSignature && !txSignature.startsWith('RELEASE_STUB_')) {
+        await prisma.transaction.create({
+          data: {
+            orderId: order.id,
+            fromAgentId: null,
+            toAgentId: order.sellerAgentId,
+            txSignature,
+            txType: 'escrow_release',
+            status: 'confirmed',
+          },
+        });
+      }
+
+      // Record clean transactions for both parties
+      await Promise.all([
+        recordCleanTransaction(order.buyerAgentId, 'buyer'),
+        recordCleanTransaction(order.sellerAgentId, 'seller'),
+      ]);
+
+      // Notify both parties
+      emitOrderCompleted({
+        buyerId: order.buyerAgentId,
+        sellerId: order.sellerAgentId,
+        listingTitle: order.listing?.title || 'your item',
+        orderId: order.id,
+      });
+
+      logger.info('Meetup escrow released — order completed', {
+        orderId: order.id,
+        txSignature,
+      });
+    } catch (err) {
+      logger.error('On-chain escrow release failed for meetup order', {
+        orderId: order.id,
+        escrowAddress: order.escrowAddress,
+        error: (err as Error).message,
+      });
+      // Don't update status — will retry on next cycle
     }
   }
 

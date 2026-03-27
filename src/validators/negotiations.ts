@@ -26,7 +26,11 @@ export const counterPayloadSchema = z.object({
   message: z.string().max(2000).optional(),
 });
 
-export const acceptPayloadSchema = z.object({}).strict();
+export const acceptPayloadSchema = z.object({
+  fulfillmentType: z.enum(['shipped', 'local_meetup']).optional().default('shipped'),
+  meetupArea: z.string().max(500).optional(),
+  meetupTime: z.string().datetime().optional(),
+}).strict();
 
 export const rejectPayloadSchema = z.object({
   reason: z.string().max(2000).optional(),

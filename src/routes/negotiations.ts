@@ -23,7 +23,10 @@ import {
   emitNegotiationAccepted,
   emitNegotiationRejected,
   emitOrderCreated,
+  emitMeetupScheduled,
 } from '../services/events';
+import { createEscrow } from '../services/escrow';
+import { calculateCollateral, validateCollateral, getAgentTier } from '../services/collateral';
 
 const router = Router();
 
@@ -245,11 +248,12 @@ async function checkAutoAccept(
 async function createOrderFromNegotiation(
   negotiationId: string,
   agreedPrice: number,
+  fulfillmentOptions?: { fulfillmentType?: 'shipped' | 'local_meetup'; meetupArea?: string; meetupTime?: string },
 ): Promise<void> {
   const negotiation = await prisma.negotiation.findUnique({
     where: { id: negotiationId },
     include: {
-      listing: true,
+      listing: { include: { agent: true } },
       buyerAgent: true,
       sellerAgent: true,
     },
@@ -276,24 +280,206 @@ async function createOrderFromNegotiation(
     return;
   }
 
-  await prisma.order.create({
-    data: {
-      listingId: negotiation.listingId,
+  // Validate wallet presence before escrow
+  const buyerWalletAddress = negotiation.buyerAgent.walletAddress;
+  const sellerWalletAddress = negotiation.sellerAgent.walletAddress;
+
+  if (!buyerWalletAddress) {
+    logger.error('Cannot create order from negotiation — buyer has no wallet', {
+      negotiationId,
       buyerAgentId: negotiation.buyerAgentId,
+    });
+    throw new AppError('BUYER_NO_WALLET', 'Buyer has no wallet configured', 400);
+  }
+
+  if (!sellerWalletAddress) {
+    logger.error('Cannot create order from negotiation — seller has no wallet', {
+      negotiationId,
       sellerAgentId: negotiation.sellerAgentId,
-      amountUsdc: BigInt(agreedPrice),
-      status: 'created',
-    },
-  });
+    });
+    throw new AppError('SELLER_NO_WALLET', 'Seller has no wallet configured', 400);
+  }
+
+  // ── Collateral Enforcement ──────────────────────────────────
+  const [buyerTier, sellerTier] = await Promise.all([
+    getAgentTier(negotiation.buyerAgentId),
+    getAgentTier(negotiation.sellerAgentId),
+  ]);
+
+  const collateral = calculateCollateral(agreedPrice, buyerTier, sellerTier);
+
+  const buyerRequired = agreedPrice + collateral.buyerCollateralUsdc;
+  const buyerValidation = await validateCollateral(negotiation.buyerAgentId, buyerRequired);
+  if (!buyerValidation.sufficient) {
+    throw new AppError(
+      'INSUFFICIENT_BUYER_COLLATERAL',
+      `Buyer needs ${buyerRequired} USDC (item: ${agreedPrice}, collateral: ${collateral.buyerCollateralUsdc}) ` +
+      `but only has ${buyerValidation.available}. Shortfall: ${buyerValidation.shortfall} USDC.`,
+      400,
+    );
+  }
+
+  const sellerValidation = await validateCollateral(negotiation.sellerAgentId, collateral.sellerCollateralUsdc);
+  if (!sellerValidation.sufficient) {
+    throw new AppError(
+      'INSUFFICIENT_SELLER_COLLATERAL',
+      `Seller needs ${collateral.sellerCollateralUsdc} USDC collateral but only has ${sellerValidation.available}.`,
+      400,
+    );
+  }
+
+  // ── Snapshot settlement wallets ──────────────────────────────
+  const getEffectiveAddress = (w: { address: string; changeEffectiveAt: Date | null; pendingAddress: string | null } | undefined): string | null => {
+    if (!w) return null;
+    if (w.changeEffectiveAt && w.changeEffectiveAt <= new Date() && w.pendingAddress) return w.pendingAddress;
+    return w.address;
+  };
+
+  const [sellerWallets, buyerWallets] = await Promise.all([
+    prisma.userWallet.findMany({ where: { agentId: negotiation.sellerAgentId } }),
+    prisma.userWallet.findMany({ where: { agentId: negotiation.buyerAgentId } }),
+  ]);
+
+  const sellerReleaseWallet = getEffectiveAddress(
+    sellerWallets.find((w) => w.role === 'escrow_release'),
+  ) || sellerWalletAddress;
+
+  const buyerRefundWallet = getEffectiveAddress(
+    buyerWallets.find((w) => w.role === 'escrow_refund'),
+  ) || buyerWalletAddress;
+
+  // ── Meetup code for local_meetup ──────────────────────────────
+  const meetupCode = fulfillmentOptions?.fulfillmentType === 'local_meetup'
+    ? String(Math.floor(100000 + Math.random() * 900000))
+    : null;
+
+  // ── Create escrow ──────────────────────────────────────────────
+  let escrow: Awaited<ReturnType<typeof createEscrow>>;
+  try {
+    escrow = await createEscrow(
+      buyerWalletAddress,
+      sellerWalletAddress,
+      BigInt(agreedPrice),
+    );
+  } catch (escrowErr) {
+    logger.error('Escrow creation failed for negotiation order', {
+      negotiationId,
+      error: (escrowErr as Error).message,
+    });
+    throw new AppError(
+      'ESCROW_CREATION_FAILED',
+      'Failed to create escrow for this order. Please try again.',
+      500,
+    );
+  }
+
+  // ── Atomic DB transaction: claim listing + create order ──────
+  let order: any;
+  try {
+    order = await prisma.$transaction(async (tx) => {
+      // Re-check listing availability inside transaction
+      const freshListing = await tx.listing.findUnique({
+        where: { id: negotiation.listingId },
+        select: { id: true, status: true, quantity: true },
+      });
+
+      if (!freshListing || freshListing.status !== 'active') {
+        throw new AppError('LISTING_UNAVAILABLE', 'Listing is no longer available for purchase', 409);
+      }
+
+      if (freshListing.quantity < 1) {
+        throw new AppError('OUT_OF_STOCK', 'This listing has been purchased by another buyer', 409);
+      }
+
+      // Decrement quantity atomically
+      await tx.listing.update({
+        where: { id: negotiation.listingId },
+        data: { quantity: { decrement: 1 } },
+      });
+
+      // Create the order
+      const newOrder = await tx.order.create({
+        data: {
+          listingId: negotiation.listingId,
+          buyerAgentId: negotiation.buyerAgentId,
+          sellerAgentId: negotiation.sellerAgentId,
+          amountUsdc: BigInt(agreedPrice),
+          escrowAddress: escrow.escrowAddress,
+          escrowSignature: escrow.txSignature,
+          buyerCollateralUsdc: BigInt(collateral.buyerCollateralUsdc),
+          sellerCollateralUsdc: BigInt(collateral.sellerCollateralUsdc),
+          collateralRatio: collateral.collateralRatio,
+          status: 'created',
+          fulfillmentType: fulfillmentOptions?.fulfillmentType || 'shipped',
+          meetupTime: fulfillmentOptions?.meetupTime ? new Date(fulfillmentOptions.meetupTime) : null,
+          meetupArea: fulfillmentOptions?.meetupArea || null,
+          meetupCode,
+          meetupStatus: fulfillmentOptions?.fulfillmentType === 'local_meetup' ? 'scheduled' : null,
+          sellerReleaseWallet,
+          buyerRefundWallet,
+        },
+      });
+
+      // Create transaction record
+      await tx.transaction.create({
+        data: {
+          orderId: newOrder.id,
+          fromAgentId: negotiation.buyerAgentId,
+          toAgentId: null,
+          amountUsdc: BigInt(agreedPrice),
+          txSignature: escrow.txSignature,
+          txType: 'escrow_fund',
+          status: 'pending',
+        },
+      });
+
+      return newOrder;
+    });
+  } catch (txErr) {
+    // If the DB transaction failed but escrow was created, log critical warning
+    if (escrow && escrow.escrowAddress && !escrow.txSignature.startsWith('STUB_')) {
+      logger.error('CRITICAL: Order creation failed after escrow was funded — manual refund may be needed', {
+        negotiationId,
+        escrowAddress: escrow.escrowAddress,
+        error: (txErr as Error).message,
+      });
+    }
+    throw txErr;
+  }
 
   logger.info('Order created from negotiation', {
     negotiationId,
+    orderId: order.id,
     listingId: negotiation.listingId,
     agreedPrice,
+    fulfillmentType: fulfillmentOptions?.fulfillmentType || 'shipped',
   });
+
+  // Emit event notifications
+  emitOrderCreated({
+    sellerId: negotiation.sellerAgentId,
+    buyerName: negotiation.buyerAgent.name,
+    listingTitle: negotiation.listing.title,
+    amountUsdc: BigInt(agreedPrice),
+    orderId: order.id,
+    listingId: negotiation.listingId,
+  });
+
+  if (fulfillmentOptions?.fulfillmentType === 'local_meetup') {
+    emitMeetupScheduled({
+      sellerId: negotiation.sellerAgentId,
+      buyerName: negotiation.buyerAgent.name,
+      listingTitle: negotiation.listing.title,
+      meetupArea: fulfillmentOptions.meetupArea!,
+      meetupTime: fulfillmentOptions.meetupTime,
+      orderId: order.id,
+      listingId: negotiation.listingId,
+    });
+  }
 
   dispatchWebhook('order.created', {
     negotiationId,
+    orderId: order.id,
     listingId: negotiation.listingId,
     buyerId: negotiation.buyerAgentId,
     sellerId: negotiation.sellerAgentId,
@@ -893,8 +1079,13 @@ router.post(
             );
           }
 
-          // Create order
-          await createOrderFromNegotiation(id, negotiation.currentPrice);
+          // Create order with fulfillment options from ACCEPT payload
+          const acceptData = data.payload as { fulfillmentType?: string; meetupArea?: string; meetupTime?: string };
+          await createOrderFromNegotiation(id, negotiation.currentPrice, {
+            fulfillmentType: acceptData.fulfillmentType as 'shipped' | 'local_meetup' | undefined,
+            meetupArea: acceptData.meetupArea,
+            meetupTime: acceptData.meetupTime,
+          });
 
           // Emit event notifications to both parties
           emitNegotiationAccepted({

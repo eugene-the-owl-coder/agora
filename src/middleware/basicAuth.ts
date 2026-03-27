@@ -10,6 +10,12 @@ import { config } from '../config';
 export function basicAuth(req: Request, res: Response, next: NextFunction): void {
   const password = config.sitePassword;
 
+  // Skip auth for API routes, health checks, and install script
+  if (req.path.startsWith('/api/') || req.path === '/health' || req.path === '/install.sh') {
+    next();
+    return;
+  }
+
   // No password configured — allow open access
   if (!password) {
     next();
