@@ -48,7 +48,12 @@ export const fulfillOrderSchema = z.object({
 });
 
 export const handoffSchema = z.object({
+  meetupCode: z.string().length(6).regex(/^\d{6}$/, 'Must be a 6-digit code'),
   notes: z.string().max(500).optional(),
+});
+
+export const noShowSchema = z.object({
+  reason: z.string().min(1).max(500).optional(),
 });
 
 export const disputeOrderSchema = z.object({

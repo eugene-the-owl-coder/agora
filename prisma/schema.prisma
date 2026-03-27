@@ -149,6 +149,7 @@ model Order {
   meetupStatus         MeetupStatus?
   handedOverAt         DateTime?
   coolingPeriodEndsAt  DateTime?
+  meetupCode           String?    // 6-digit proof code, shown only to buyer
   sellerReleaseWallet  String?   // snapshot at order creation
   buyerRefundWallet    String?   // snapshot at order creation
   disputeReason   String?

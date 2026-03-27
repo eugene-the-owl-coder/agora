@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema, handoffSchema, type ShippingAddress } from '../validators/orders';
+import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema, handoffSchema, noShowSchema, type ShippingAddress } from '../validators/orders';
 import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
@@ -237,6 +237,11 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       buyerWallets.find((w) => w.role === 'escrow_refund'),
     ) || req.agent!.walletAddress;
 
+    // ── Generate meetup proof code for local_meetup orders ──────
+    const meetupCode = data.fulfillmentType === 'local_meetup'
+      ? String(Math.floor(100000 + Math.random() * 900000))
+      : null;
+
     // ── Race condition guard: re-check listing availability inside transaction ──
     // Between the initial check and escrow creation, another buyer may have purchased.
     // We atomically decrement quantity to claim the item.
@@ -340,6 +345,7 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
             fulfillmentType: data.fulfillmentType,
             meetupTime: data.meetupTime ? new Date(data.meetupTime) : null,
             meetupArea: data.meetupArea || null,
+            meetupCode,
             meetupStatus: data.fulfillmentType === 'local_meetup' ? 'scheduled' : null,
             sellerReleaseWallet,
             buyerRefundWallet,
@@ -615,6 +621,11 @@ router.post('/:id/handoff', authenticate, requireScope('sell'), async (req: Requ
       throw new AppError('INVALID_STATUS', `Order cannot be handed off from status: ${order.status}`, 400);
     }
 
+    // Verify meetup proof code — seller must get this from the buyer in person
+    if (order.meetupCode && data.meetupCode !== order.meetupCode) {
+      throw new AppError('INVALID_MEETUP_CODE', 'The meetup code is incorrect. Ask the buyer for the correct 6-digit code.', 403);
+    }
+
     const now = new Date();
     const coolingPeriodEndsAt = new Date(now.getTime() + COOLING_PERIOD_MS);
 
@@ -875,6 +886,97 @@ router.post('/:id/cancel', authenticate, async (req: Request, res: Response, nex
   }
 });
 
+// POST /:id/no-show — either party marks no-show for local_meetup
+router.post('/:id/no-show', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = uuidParamSchema.parse(req.params);
+    const data = noShowSchema.parse(req.body);
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { buyer: true },
+    });
+    if (!order) {
+      throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
+    }
+
+    if (order.buyerAgentId !== req.agent!.id && order.sellerAgentId !== req.agent!.id) {
+      throw new AppError('FORBIDDEN', 'Only buyer or seller can mark no-show', 403);
+    }
+
+    if (order.fulfillmentType !== 'local_meetup') {
+      throw new AppError('INVALID_FULFILLMENT_TYPE', 'No-show is only available for local_meetup orders', 400);
+    }
+
+    // Only allowed when meetup hasn't happened yet
+    if (order.meetupStatus !== 'scheduled') {
+      throw new AppError('INVALID_STATUS', `Cannot mark no-show when meetup status is: ${order.meetupStatus}`, 400);
+    }
+
+    if (order.status !== 'created' && order.status !== 'funded') {
+      throw new AppError('INVALID_STATUS', `Cannot mark no-show from order status: ${order.status}`, 400);
+    }
+
+    // Must be past meetupTime (if set) OR at least 1 hour after order creation
+    const now = new Date();
+    const oneHourAfterCreation = new Date(order.createdAt.getTime() + 60 * 60 * 1000);
+    const eligibleAt = order.meetupTime || oneHourAfterCreation;
+
+    if (now < eligibleAt) {
+      throw new AppError(
+        'TOO_EARLY',
+        `Cannot mark no-show yet. Earliest allowed: ${eligibleAt.toISOString()}`,
+        400,
+      );
+    }
+
+    // Refund escrow if funded
+    if (order.escrowAddress) {
+      const buyerWallet = order.buyerRefundWallet || order.buyer.walletAddress;
+      if (!buyerWallet) {
+        throw new AppError(
+          'BUYER_NO_WALLET',
+          'Buyer has no wallet. Cannot process escrow refund without a valid buyer wallet.',
+          400,
+        );
+      }
+      const refundSig = await refundEscrow(order.escrowAddress, buyerWallet);
+      await prisma.transaction.create({
+        data: {
+          orderId: id,
+          fromAgentId: null,
+          toAgentId: order.buyerAgentId,
+          amountUsdc: order.amountUsdc,
+          txSignature: refundSig,
+          txType: 'refund',
+          status: 'confirmed',
+        },
+      });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data: {
+        meetupStatus: 'expired',
+        status: 'cancelled',
+        resolvedAt: now,
+      },
+    });
+
+    dispatchWebhook('order.cancelled', {
+      orderId: id,
+      reason: 'no_show',
+      reportedBy: req.agent!.id,
+      notes: data.reason,
+    }).catch(() => {});
+
+    logger.info('Order marked no-show', { orderId: id, reportedBy: req.agent!.id });
+    res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /:id/collateral — collateral status for an order
 router.get('/:id/collateral', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -925,7 +1027,10 @@ function serializeOrder(order: any, opts?: { viewerAgentId?: string }) {
     ? order.shippingInfo ?? null
     : redactShippingInfo(order.shippingInfo);
 
-  return {
+  // meetupCode is ONLY visible to the buyer — never expose to the seller
+  const isBuyer = opts?.viewerAgentId === order.buyerAgentId;
+
+  const result: Record<string, any> = {
     ...order,
     shippingInfo,
     amountUsdc: order.amountUsdc?.toString(),
@@ -938,6 +1043,15 @@ function serializeOrder(order: any, opts?: { viewerAgentId?: string }) {
       amountSol: tx.amountSol?.toString(),
     })),
   };
+
+  // Strip meetupCode from response unless viewer is the buyer
+  if (isBuyer) {
+    result.meetupCode = order.meetupCode ?? null;
+  } else {
+    delete result.meetupCode;
+  }
+
+  return result;
 }
 
 export default router;
