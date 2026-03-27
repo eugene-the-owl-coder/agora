@@ -1,8 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { UserWallet } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { withdrawSchema } from '../validators/orders';
+import { withdrawSchema, upsertSettlementWalletSchema } from '../validators/orders';
 import { getBalances, validateWalletAddress, generateWallet } from '../services/wallet';
 import { logger } from '../utils/logger';
 
@@ -160,6 +161,124 @@ router.post('/withdraw', authenticate, async (req: Request, res: Response, next:
       },
       message: 'Withdrawal request created. Processing will occur in Phase 2.',
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Settlement Wallet Helpers ──────────────────────────────────────
+
+function serializeWallet(w: UserWallet) {
+  const now = new Date();
+  const effectiveAddress =
+    w.changeEffectiveAt && w.changeEffectiveAt <= now && w.pendingAddress
+      ? w.pendingAddress
+      : w.address;
+  return {
+    role: w.role,
+    address: effectiveAddress,
+    pendingAddress:
+      w.changeEffectiveAt && w.changeEffectiveAt > now ? w.pendingAddress : null,
+    changeEffectiveAt: w.changeEffectiveAt,
+    activatedAt: w.activatedAt,
+    isChangePending: !!(w.changeEffectiveAt && w.changeEffectiveAt > now),
+  };
+}
+
+const CHANGE_DELAY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// GET /settlement-wallets — list agent's settlement wallets
+router.get('/settlement-wallets', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const wallets = await prisma.userWallet.findMany({
+      where: { agentId: req.agent!.id },
+      orderBy: { role: 'asc' },
+    });
+
+    res.json({ wallets: wallets.map((w) => serializeWallet(w)) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /settlement-wallets — set or update a settlement wallet
+router.put('/settlement-wallets', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = upsertSettlementWalletSchema.parse(req.body);
+
+    if (!validateWalletAddress(data.address)) {
+      throw new AppError('INVALID_ADDRESS', 'Invalid Solana wallet address', 400);
+    }
+
+    const existing = await prisma.userWallet.findUnique({
+      where: {
+        agentId_role: {
+          agentId: req.agent!.id,
+          role: data.role,
+        },
+      },
+    });
+
+    let result: UserWallet;
+    const now = new Date();
+
+    if (existing) {
+      // Check if address is the same (no-op)
+      const currentEffective =
+        existing.changeEffectiveAt && existing.changeEffectiveAt <= now && existing.pendingAddress
+          ? existing.pendingAddress
+          : existing.address;
+
+      if (currentEffective === data.address) {
+        return res.json({ wallet: serializeWallet(existing) });
+      }
+
+      // Check change lock
+      if (existing.changeLockedUntil && existing.changeLockedUntil > now) {
+        throw new AppError(
+          'WALLET_CHANGE_LOCKED',
+          `Wallet changes are locked until ${existing.changeLockedUntil.toISOString()}. ` +
+          'Wait for the current change to take effect before requesting another.',
+          409,
+        );
+      }
+
+      // Apply 24h delay for existing wallet changes
+      const effectiveAt = new Date(now.getTime() + CHANGE_DELAY_MS);
+      result = await prisma.userWallet.update({
+        where: { id: existing.id },
+        data: {
+          pendingAddress: data.address,
+          changeEffectiveAt: effectiveAt,
+          changeLockedUntil: effectiveAt,
+        },
+      });
+
+      logger.info('Settlement wallet change requested (24h delay)', {
+        agentId: req.agent!.id,
+        role: data.role,
+        currentAddress: existing.address,
+        pendingAddress: data.address,
+        effectiveAt: effectiveAt.toISOString(),
+      });
+    } else {
+      // First-time setup — no delay
+      result = await prisma.userWallet.create({
+        data: {
+          agentId: req.agent!.id,
+          role: data.role,
+          address: data.address,
+        },
+      });
+
+      logger.info('Settlement wallet created', {
+        agentId: req.agent!.id,
+        role: data.role,
+        address: data.address,
+      });
+    }
+
+    res.json({ wallet: serializeWallet(result) });
   } catch (err) {
     next(err);
   }

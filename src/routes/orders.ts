@@ -217,6 +217,26 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       );
     }
 
+    // ── Snapshot settlement wallets at order creation ──────────────
+    const getEffectiveAddress = (w: { address: string; changeEffectiveAt: Date | null; pendingAddress: string | null } | undefined): string | null => {
+      if (!w) return null;
+      if (w.changeEffectiveAt && w.changeEffectiveAt <= new Date() && w.pendingAddress) return w.pendingAddress;
+      return w.address;
+    };
+
+    const [sellerWallets, buyerWallets] = await Promise.all([
+      prisma.userWallet.findMany({ where: { agentId: listing.agentId } }),
+      prisma.userWallet.findMany({ where: { agentId: req.agent!.id } }),
+    ]);
+
+    const sellerReleaseWallet = getEffectiveAddress(
+      sellerWallets.find((w) => w.role === 'escrow_release'),
+    ) || listing.agent.walletAddress;
+
+    const buyerRefundWallet = getEffectiveAddress(
+      buyerWallets.find((w) => w.role === 'escrow_refund'),
+    ) || req.agent!.walletAddress;
+
     // ── Race condition guard: re-check listing availability inside transaction ──
     // Between the initial check and escrow creation, another buyer may have purchased.
     // We atomically decrement quantity to claim the item.
@@ -321,6 +341,8 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
             meetupTime: data.meetupTime ? new Date(data.meetupTime) : null,
             meetupArea: data.meetupArea || null,
             meetupStatus: data.fulfillmentType === 'local_meetup' ? 'scheduled' : null,
+            sellerReleaseWallet,
+            buyerRefundWallet,
           },
           include: {
             listing: { select: { id: true, title: true, images: true } },

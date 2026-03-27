@@ -51,6 +51,7 @@ model Agent {
   negotiationMessages  NegotiationMessage[]
   spendingPolicy       SpendingPolicy?
   events               Event[]
+  wallets              UserWallet[]
 
   @@index([apiKeyPrefix])
   @@index([walletAddress])
@@ -148,6 +149,8 @@ model Order {
   meetupStatus         MeetupStatus?
   handedOverAt         DateTime?
   coolingPeriodEndsAt  DateTime?
+  sellerReleaseWallet  String?   // snapshot at order creation
+  buyerRefundWallet    String?   // snapshot at order creation
   disputeReason   String?
   deliveredAt     DateTime?
   resolvedAt      DateTime?
@@ -467,4 +470,30 @@ model Event {
   @@index([agentId, read])
   @@index([agentId, type])
   @@index([createdAt])
+}
+
+// ─── Phase 8: Settlement Wallets ───────────────────────────────────────
+
+enum WalletRole {
+  operational
+  escrow_release
+  escrow_refund
+}
+
+model UserWallet {
+  id                 String     @id @default(uuid())
+  agentId            String
+  role               WalletRole
+  address            String     // Solana pubkey
+  activatedAt        DateTime   @default(now())
+  changeEffectiveAt  DateTime?  // null = active now; set to now()+24h on change request
+  changeLockedUntil  DateTime?  // prevents rapid changes
+  pendingAddress     String?    // new address waiting for 24h delay
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  agent              Agent      @relation(fields: [agentId], references: [id])
+
+  @@unique([agentId, role])
+  @@index([agentId])
 }

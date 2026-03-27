@@ -116,3 +116,8 @@ export const withdrawSchema = z.object({
   amountUsdc: z.coerce.number().int().positive().optional(),
   amountSol: z.coerce.number().int().positive().optional(),
 });
+
+export const upsertSettlementWalletSchema = z.object({
+  role: z.enum(['operational', 'escrow_release', 'escrow_refund']),
+  address: z.string().min(32).max(44), // Solana base58 address
+});
