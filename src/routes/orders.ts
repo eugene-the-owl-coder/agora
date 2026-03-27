@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { authenticate, requireScope } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
-import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema, type ShippingAddress } from '../validators/orders';
+import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema, handoffSchema, type ShippingAddress } from '../validators/orders';
 import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
 import { dispatchWebhook } from '../services/webhook';
@@ -24,7 +24,11 @@ import {
   emitOrderCreated,
   emitOrderShipped,
   emitOrderCompleted,
+  emitMeetupScheduled,
+  emitItemHandedOver,
 } from '../services/events';
+
+const COOLING_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 const router = Router();
 
@@ -313,6 +317,10 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
             collateralRatio: collateral.collateralRatio,
             status: 'created',
             shippingInfo: shippingData,
+            fulfillmentType: data.fulfillmentType,
+            meetupTime: data.meetupTime ? new Date(data.meetupTime) : null,
+            meetupArea: data.meetupArea || null,
+            meetupStatus: data.fulfillmentType === 'local_meetup' ? 'scheduled' : null,
           },
           include: {
             listing: { select: { id: true, title: true, images: true } },
@@ -369,6 +377,19 @@ router.post('/', authenticate, requireScope('buy'), async (req: Request, res: Re
       orderId: order.id,
       listingId: listing.id,
     });
+
+    // Emit meetup-specific event if local_meetup
+    if (data.fulfillmentType === 'local_meetup') {
+      emitMeetupScheduled({
+        sellerId: listing.agentId,
+        buyerName: req.agent!.name,
+        listingTitle: listing.title,
+        meetupArea: data.meetupArea!,
+        meetupTime: data.meetupTime,
+        orderId: order.id,
+        listingId: listing.id,
+      });
+    }
 
     dispatchWebhook('order.created', {
       orderId: order.id,
@@ -540,6 +561,67 @@ router.post('/:id/fulfill', authenticate, requireScope('sell'), async (req: Requ
   }
 });
 
+// POST /:id/handoff — seller marks item handed over (local_meetup)
+router.post('/:id/handoff', authenticate, requireScope('sell'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = uuidParamSchema.parse(req.params);
+    const data = handoffSchema.parse(req.body);
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: { listing: { select: { id: true, title: true } } },
+    });
+    if (!order) {
+      throw new AppError('ORDER_NOT_FOUND', 'Order not found', 404);
+    }
+
+    if (order.sellerAgentId !== req.agent!.id) {
+      throw new AppError('FORBIDDEN', 'Only the seller can mark handoff for this order', 403);
+    }
+
+    if (order.fulfillmentType !== 'local_meetup') {
+      throw new AppError('INVALID_FULFILLMENT_TYPE', 'Handoff is only available for local_meetup orders', 400);
+    }
+
+    if (order.status !== 'created' && order.status !== 'funded') {
+      throw new AppError('INVALID_STATUS', `Order cannot be handed off from status: ${order.status}`, 400);
+    }
+
+    const now = new Date();
+    const coolingPeriodEndsAt = new Date(now.getTime() + COOLING_PERIOD_MS);
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data: {
+        meetupStatus: 'seller_handed_over',
+        handedOverAt: now,
+        coolingPeriodEndsAt,
+      },
+    });
+
+    // Notify buyer
+    emitItemHandedOver({
+      buyerId: order.buyerAgentId,
+      listingTitle: (order as any).listing?.title || 'your item',
+      orderId: id,
+      coolingPeriodEndsAt: coolingPeriodEndsAt.toISOString(),
+    });
+
+    dispatchWebhook('order.handed_over', {
+      orderId: id,
+      sellerId: req.agent!.id,
+      handedOverAt: now.toISOString(),
+      coolingPeriodEndsAt: coolingPeriodEndsAt.toISOString(),
+      notes: data.notes,
+    }).catch(() => {});
+
+    logger.info('Order handed over', { orderId: id, coolingPeriodEndsAt: coolingPeriodEndsAt.toISOString() });
+    res.json({ order: serializeOrder(updated, { viewerAgentId: req.agent!.id }) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /:id/confirm — buyer confirms receipt
 router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -560,8 +642,20 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
       throw new AppError('FORBIDDEN', 'Only the buyer can confirm this order', 403);
     }
 
-    if (order.status !== 'fulfilled') {
-      throw new AppError('INVALID_STATUS', `Order cannot be confirmed from status: ${order.status}`, 400);
+    // Validate confirmation eligibility based on fulfillment type
+    if (order.fulfillmentType === 'local_meetup') {
+      // For local meetup: order must be created/funded AND seller must have marked handoff
+      if (order.status !== 'created' && order.status !== 'funded') {
+        throw new AppError('INVALID_STATUS', `Order cannot be confirmed from status: ${order.status}`, 400);
+      }
+      if (order.meetupStatus !== 'seller_handed_over') {
+        throw new AppError('INVALID_STATUS', 'Seller must mark item as handed over before buyer can confirm', 400);
+      }
+    } else {
+      // For shipped: existing behavior — status must be 'fulfilled'
+      if (order.status !== 'fulfilled') {
+        throw new AppError('INVALID_STATUS', `Order cannot be confirmed from status: ${order.status}`, 400);
+      }
     }
 
     // Validate seller wallet before releasing escrow
@@ -584,6 +678,7 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
       data: {
         status: 'completed',
         resolvedAt: new Date(),
+        ...(order.fulfillmentType === 'local_meetup' ? { meetupStatus: 'buyer_confirmed' } : {}),
       },
     });
 

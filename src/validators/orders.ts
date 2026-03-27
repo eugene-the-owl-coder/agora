@@ -19,6 +19,7 @@ export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
 
 export const createOrderSchema = z.object({
   listingId: z.string().uuid(),
+  fulfillmentType: z.enum(['shipped', 'local_meetup']).default('shipped'),
   shippingAddress: shippingAddressSchema.optional(),
   /** @deprecated Use shippingAddress instead. Kept for backward compat. */
   shippingInfo: z
@@ -31,11 +32,23 @@ export const createOrderSchema = z.object({
       name: z.string().optional(),
     })
     .optional(),
-});
+  // Local meetup fields
+  meetupTime: z.string().datetime().optional(),
+  meetupArea: z.string().min(1).max(200).optional(),
+}).refine(data => {
+  if (data.fulfillmentType === 'local_meetup' && !data.meetupArea) {
+    return false;
+  }
+  return true;
+}, { message: 'meetupArea is required for local_meetup orders' });
 
 export const fulfillOrderSchema = z.object({
   trackingNumber: z.string().min(1).max(100).optional(),
   shippingInfo: z.record(z.unknown()).optional(),
+});
+
+export const handoffSchema = z.object({
+  notes: z.string().max(500).optional(),
 });
 
 export const disputeOrderSchema = z.object({

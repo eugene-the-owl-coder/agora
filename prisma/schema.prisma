@@ -114,6 +114,18 @@ enum OrderStatus {
   refunded
 }
 
+enum FulfillmentType {
+  shipped
+  local_meetup
+}
+
+enum MeetupStatus {
+  scheduled
+  seller_handed_over
+  buyer_confirmed
+  expired
+}
+
 model Order {
   id              String      @id @default(uuid())
   listingId       String
@@ -130,6 +142,12 @@ model Order {
   buyerCollateralUsdc   BigInt?
   sellerCollateralUsdc  BigInt?
   collateralRatio       Float?    @default(1.0)
+  fulfillmentType      FulfillmentType @default(shipped)
+  meetupTime           DateTime?
+  meetupArea           String?
+  meetupStatus         MeetupStatus?
+  handedOverAt         DateTime?
+  coolingPeriodEndsAt  DateTime?
   disputeReason   String?
   deliveredAt     DateTime?
   resolvedAt      DateTime?

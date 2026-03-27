@@ -217,6 +217,50 @@ export function emitOrderCompleted(params: {
   });
 }
 
+// ─── Meetup Events ──────────────────────────────────────────────
+
+export function emitMeetupScheduled(params: {
+  sellerId: string;
+  buyerName: string;
+  listingTitle: string;
+  meetupArea: string;
+  meetupTime?: string;
+  orderId: string;
+  listingId: string;
+}): void {
+  const timeInfo = params.meetupTime ? ` at ${params.meetupTime}` : '';
+  emitEvent({
+    agentId: params.sellerId,
+    type: 'order.meetup_scheduled',
+    title: `Local meetup scheduled for ${params.listingTitle}`,
+    message: `${params.buyerName} scheduled a local meetup in ${params.meetupArea}${timeInfo}.`,
+    data: {
+      orderId: params.orderId,
+      listingId: params.listingId,
+      meetupArea: params.meetupArea,
+      meetupTime: params.meetupTime,
+    },
+  });
+}
+
+export function emitItemHandedOver(params: {
+  buyerId: string;
+  listingTitle: string;
+  orderId: string;
+  coolingPeriodEndsAt: string;
+}): void {
+  emitEvent({
+    agentId: params.buyerId,
+    type: 'order.handed_over',
+    title: `Item handed over — confirm receipt`,
+    message: `The seller marked ${params.listingTitle} as handed over. Confirm receipt to release payment. Cooling period ends at ${params.coolingPeriodEndsAt}.`,
+    data: {
+      orderId: params.orderId,
+      coolingPeriodEndsAt: params.coolingPeriodEndsAt,
+    },
+  });
+}
+
 // ─── Negotiation Events ─────────────────────────────────────────
 
 export function emitNegotiationOffer(params: {
