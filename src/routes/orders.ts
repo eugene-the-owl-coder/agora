@@ -6,6 +6,7 @@ import { AppError } from '../middleware/errorHandler';
 import { createOrderSchema, fulfillOrderSchema, disputeOrderSchema, listOrdersSchema, handoffSchema, noShowSchema, type ShippingAddress } from '../validators/orders';
 import { uuidParamSchema } from '../validators/common';
 import { createEscrow, releaseEscrow, refundEscrow, openDisputeOnChain, determineTier } from '../services/escrow';
+import { executeSettlement } from '../services/settlement';
 import { dispatchWebhook } from '../services/webhook';
 import { validatePurchase } from '../services/spendingPolicy';
 import { recordCleanTransaction } from '../services/rating';
@@ -711,11 +712,15 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
       );
     }
 
-    // Release escrow
-    const releaseSig = await releaseEscrow(
-      order.escrowAddress || '',
-      sellerWallet,
-    );
+    // Release escrow via settlement executor (idempotent + retry)
+    const { txSignature: releaseSig } = await executeSettlement({
+      orderId: id,
+      txType: 'escrow_release',
+      escrowAddress: order.escrowAddress || '',
+      destinationWallet: sellerWallet,
+      amountUsdc: order.amountUsdc,
+      toAgentId: order.sellerAgentId,
+    });
 
     const updated = await prisma.order.update({
       where: { id },
@@ -723,19 +728,6 @@ router.post('/:id/confirm', authenticate, requireScope('buy'), async (req: Reque
         status: 'completed',
         resolvedAt: new Date(),
         ...(order.fulfillmentType === 'local_meetup' ? { meetupStatus: 'buyer_confirmed' } : {}),
-      },
-    });
-
-    // Record release transaction
-    await prisma.transaction.create({
-      data: {
-        orderId: id,
-        fromAgentId: null,
-        toAgentId: order.sellerAgentId,
-        amountUsdc: order.amountUsdc,
-        txSignature: releaseSig,
-        txType: 'escrow_release',
-        status: 'confirmed',
       },
     });
 
@@ -840,7 +832,7 @@ router.post('/:id/cancel', authenticate, async (req: Request, res: Response, nex
       throw new AppError('INVALID_STATUS', `Order cannot be cancelled from status: ${order.status}`, 400);
     }
 
-    // Refund escrow if funded
+    // Refund escrow if funded (via settlement executor — idempotent + retry)
     if (order.escrowAddress) {
       // Use snapshotted refund wallet, fall back to live wallet lookup
       let buyerWallet = order.buyerRefundWallet;
@@ -855,17 +847,13 @@ router.post('/:id/cancel', authenticate, async (req: Request, res: Response, nex
           400,
         );
       }
-      const refundSig = await refundEscrow(order.escrowAddress, buyerWallet);
-      await prisma.transaction.create({
-        data: {
-          orderId: id,
-          fromAgentId: null,
-          toAgentId: order.buyerAgentId,
-          amountUsdc: order.amountUsdc,
-          txSignature: refundSig,
-          txType: 'refund',
-          status: 'confirmed',
-        },
+      await executeSettlement({
+        orderId: id,
+        txType: 'refund',
+        escrowAddress: order.escrowAddress,
+        destinationWallet: buyerWallet,
+        amountUsdc: order.amountUsdc,
+        toAgentId: order.buyerAgentId,
       });
     }
 
@@ -930,7 +918,7 @@ router.post('/:id/no-show', authenticate, async (req: Request, res: Response, ne
       );
     }
 
-    // Refund escrow if funded
+    // Refund escrow if funded (via settlement executor — idempotent + retry)
     if (order.escrowAddress) {
       const buyerWallet = order.buyerRefundWallet || order.buyer.walletAddress;
       if (!buyerWallet) {
@@ -940,17 +928,13 @@ router.post('/:id/no-show', authenticate, async (req: Request, res: Response, ne
           400,
         );
       }
-      const refundSig = await refundEscrow(order.escrowAddress, buyerWallet);
-      await prisma.transaction.create({
-        data: {
-          orderId: id,
-          fromAgentId: null,
-          toAgentId: order.buyerAgentId,
-          amountUsdc: order.amountUsdc,
-          txSignature: refundSig,
-          txType: 'refund',
-          status: 'confirmed',
-        },
+      await executeSettlement({
+        orderId: id,
+        txType: 'refund',
+        escrowAddress: order.escrowAddress,
+        destinationWallet: buyerWallet,
+        amountUsdc: order.amountUsdc,
+        toAgentId: order.buyerAgentId,
       });
     }
 

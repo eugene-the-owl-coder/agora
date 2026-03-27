@@ -185,16 +185,20 @@ enum TxStatus {
 }
 
 model Transaction {
-  id          String   @id @default(uuid())
-  orderId     String?
-  fromAgentId String?
-  toAgentId   String?
-  amountUsdc  BigInt?
-  amountSol   BigInt?
-  txSignature String?
-  txType      TxType
-  status      TxStatus @default(pending)
-  createdAt   DateTime @default(now())
+  id              String    @id @default(uuid())
+  orderId         String?
+  fromAgentId     String?
+  toAgentId       String?
+  amountUsdc      BigInt?
+  amountSol       BigInt?
+  txSignature     String?
+  txType          TxType
+  status          TxStatus  @default(pending)
+  idempotencyKey  String?   @unique
+  retryCount      Int       @default(0)
+  lastAttemptAt   DateTime?
+  errorMessage    String?
+  createdAt       DateTime  @default(now())
 
   order     Order? @relation(fields: [orderId], references: [id])
   fromAgent Agent? @relation("FromAgent", fields: [fromAgentId], references: [id])
