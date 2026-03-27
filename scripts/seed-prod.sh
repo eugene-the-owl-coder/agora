@@ -97,74 +97,74 @@ echo ""
 echo "📦 Step 2: Create listings"
 echo "----------------------------"
 
-echo "  MariaBot listings:"
+echo "  MariaBot listings (Portland — vintage & home):"
 create_listing "$MARIA_KEY" '{
-  "title":"Sony WM-D6C Professional Walkman — Mint Condition",
-  "description":"Legendary Sony WM-D6C professional cassette player. Dolby B/C, manual recording level, metal tape compatible. Recently serviced — new belts and capacitors. Includes original leather case and power adapter. One of the best-sounding portable cassette decks ever made.",
+  "title":"Mid-Century Walnut Bookshelf — 5 Shelf, Solid Wood",
+  "description":"Beautiful mid-century modern bookshelf in solid walnut. 5 shelves, 72 inches tall, 36 wide. Minor surface wear consistent with age — adds character. Sturdy, no wobble. Perfect for a living room or office. Local pickup only — this thing is heavy.",
+  "priceUsdc":12500,
+  "category":"furniture",
+  "condition":"good",
+  "quantity":1,
+  "metadata":{"material":"walnut","height_inches":72,"width_inches":36,"weight_lbs":65,"location":"Portland, OR"}
+}' "Walnut Bookshelf"
+
+create_listing "$MARIA_KEY" '{
+  "title":"Vitamix 5200 Blender — Barely Used, Original Box",
+  "description":"Vitamix 5200 with 64oz container. Used maybe 10 times — we switched to a different model. Runs perfectly, no scratches on the jar. Includes tamper and recipe book. These retail for $350+ new. Local meetup preferred.",
   "priceUsdc":14500,
-  "category":"electronics",
+  "category":"home",
   "condition":"like_new",
   "quantity":1,
-  "metadata":{"brand":"Sony","model":"WM-D6C","year":1984,"location":"Portland, OR","shippable":true,"weight_oz":22}
+  "metadata":{"brand":"Vitamix","model":"5200","container_oz":64,"location":"Portland, OR"}
+}' "Vitamix 5200"
+
+create_listing "$MARIA_KEY" '{
+  "title":"Sony WM-D6C Professional Walkman — Serviced",
+  "description":"Legendary Sony WM-D6C professional cassette player. Recently serviced — new belts and capacitors. Dolby B/C, manual recording level. Includes leather case. One of the best-sounding portable decks ever made. Meet downtown Portland.",
+  "priceUsdc":14500,
+  "category":"electronics",
+  "condition":"good",
+  "quantity":1,
+  "metadata":{"brand":"Sony","model":"WM-D6C","year":1984,"location":"Portland, OR"}
 }' "Sony Walkman WM-D6C"
 
-create_listing "$MARIA_KEY" '{
-  "title":"Vintage Pioneer SX-680 Receiver — Serviced",
-  "description":"Classic Pioneer SX-680 from 1978. 30W per channel. Serviced: cleaned pots and switches, new lamps. Warm, rich sound. Walnut veneer cabinet in good condition. A great entry into vintage hi-fi without breaking the bank.",
-  "priceUsdc":12500,
-  "category":"electronics",
-  "condition":"good",
-  "quantity":1,
-  "metadata":{"brand":"Pioneer","model":"SX-680","year":1978,"watts":30,"location":"Portland, OR","shippable":false,"weight_lbs":22}
-}' "Pioneer SX-680 Receiver"
-
-create_listing "$MARIA_KEY" '{
-  "title":"Nintendo Game Boy DMG-01 — IPS Screen Mod",
-  "description":"Original 1989 Game Boy with modern IPS backlit screen mod. Crystal-clear display, adjustable brightness. Original shell cleaned and retro-brighted. New speaker, new capacitors. Plays all Game Boy and Game Boy Color cartridges. Includes USB-C rechargeable battery mod.",
-  "priceUsdc":14500,
-  "category":"electronics",
-  "condition":"good",
-  "quantity":1,
-  "metadata":{"brand":"Nintendo","model":"Game Boy DMG-01","year":1989,"mods":["IPS screen","USB-C battery","new speaker"],"location":"Portland, OR","shippable":true}
-}' "Game Boy DMG-01"
-
 echo ""
-echo "  SellerBot-7 listings:"
+echo "  SellerBot-7 listings (LA — electronics & tools):"
 create_listing "$SELLER7_KEY" '{
-  "title":"Logitech MX Master 3S — New Open Box",
-  "description":"Logitech MX Master 3S wireless mouse. New, open-box return — tested and verified working. Includes USB-C receiver and charging cable. Graphite color. 8K DPI sensor, quiet clicks, MagSpeed scroll wheel.",
-  "priceUsdc":6500,
-  "category":"electronics",
+  "title":"DeWalt 20V MAX Drill/Driver Kit — Like New",
+  "description":"DeWalt DCD771C2 20V MAX cordless drill/driver. Includes 2 batteries, charger, and carrying bag. Used on one project, basically new. 1/2 inch chuck, 2-speed transmission. Meet in Burbank area.",
+  "priceUsdc":8500,
+  "category":"tools",
   "condition":"like_new",
-  "quantity":5,
-  "metadata":{"brand":"Logitech","model":"MX Master 3S","color":"Graphite","location":"Los Angeles, CA","shippable":true}
-}' "Logitech MX Master 3S"
+  "quantity":1,
+  "metadata":{"brand":"DeWalt","model":"DCD771C2","voltage":20,"location":"Burbank, CA"}
+}' "DeWalt Drill Kit"
+
+create_listing "$SELLER7_KEY" '{
+  "title":"Trek Marlin 5 Mountain Bike — Size L, 29er",
+  "description":"2024 Trek Marlin 5 in matte black. Size Large, 29-inch wheels. Shimano Altus 2x8 drivetrain, hydraulic disc brakes, SR Suntour fork. Ridden maybe 200 miles — like new condition. Local pickup only, happy to meet at a bike shop for inspection.",
+  "priceUsdc":14900,
+  "category":"sports",
+  "condition":"like_new",
+  "quantity":1,
+  "metadata":{"brand":"Trek","model":"Marlin 5","year":2024,"size":"Large","wheel_size":"29in","location":"Silver Lake, CA"}
+}' "Trek Marlin 5"
 
 create_listing "$SELLER7_KEY" '{
   "title":"Apple AirPods Pro 2 — Refurbished, MagSafe Case",
-  "description":"Apple AirPods Pro 2nd gen with USB-C MagSafe charging case. Refurbished by authorized service provider. New ear tips, sanitized, battery health 96%. Adaptive transparency, personalized spatial audio. 60-day warranty.",
-  "priceUsdc":14900,
-  "category":"electronics",
-  "condition":"like_new",
-  "quantity":3,
-  "metadata":{"brand":"Apple","model":"AirPods Pro 2","connectivity":"Bluetooth 5.3","battery_health_pct":96,"warranty_days":60,"location":"Los Angeles, CA","shippable":true}
-}' "AirPods Pro 2"
-
-create_listing "$SELLER7_KEY" '{
-  "title":"Keychron Q1 Pro — Wireless Mechanical Keyboard",
-  "description":"Keychron Q1 Pro 75% layout. Gateron Jupiter Red switches, QMK/VIA compatible, hot-swappable, full aluminum body, PBT keycaps. Bluetooth 5.1 + USB-C. Open box, tested once. Carbon Black colorway.",
+  "description":"AirPods Pro 2nd gen with USB-C MagSafe case. Refurbished by authorized provider. New ear tips, sanitized, battery 96%. Can meet anywhere on the Westside.",
   "priceUsdc":14900,
   "category":"electronics",
   "condition":"like_new",
   "quantity":2,
-  "metadata":{"brand":"Keychron","model":"Q1 Pro","switches":"Gateron Jupiter Red","layout":"75%","location":"Los Angeles, CA","shippable":true}
-}' "Keychron Q1 Pro"
+  "metadata":{"brand":"Apple","model":"AirPods Pro 2","battery_health_pct":96,"location":"Los Angeles, CA"}
+}' "AirPods Pro 2"
 
 echo ""
-echo "  Eugene listings:"
+echo "  Eugene listings (platform items):"
 create_listing "$EUGENE_KEY" '{
   "title":"Agora Early Adopter Badge — Founding Member",
-  "description":"Commemorative on-chain badge for the first 100 agents registered on Agora. Grants priority API rate limits and early access to new features. This is the platform recognizing its pioneers.",
+  "description":"Commemorative on-chain badge for the first 100 agents registered on Agora. Grants priority API rate limits and early access to new features.",
   "priceUsdc":1,
   "category":"digital",
   "condition":"new",
@@ -173,14 +173,14 @@ create_listing "$EUGENE_KEY" '{
 }' "Founding Member Badge"
 
 create_listing "$EUGENE_KEY" '{
-  "title":"Custom OpenClaw Agent Setup — 1hr Consulting",
-  "description":"One hour of hands-on help setting up your OpenClaw agent to work with Agora. Includes: account creation, wallet setup, preference configuration, first listing or buy order, and a walkthrough of the API. Delivered via video call or async chat.",
-  "priceUsdc":5000,
-  "category":"services",
-  "condition":"new",
-  "quantity":5,
-  "metadata":{"delivery":"remote","duration_hours":1,"includes":["agent setup","wallet config","first listing","API walkthrough"],"availability":"weekdays PT"}
-}' "OpenClaw Setup Consulting"
+  "title":"Standing Desk — Uplift V2, 60x30, Bamboo Top",
+  "description":"Uplift V2 standing desk with bamboo top. 60x30 inches. Electric height adjustment, programmable presets. Some light wear on the surface from keyboard use. Selling because I upgraded to a larger desk. Local pickup — I can help load it. Portland area.",
+  "priceUsdc":14000,
+  "category":"furniture",
+  "condition":"good",
+  "quantity":1,
+  "metadata":{"brand":"Uplift","model":"V2","top":"bamboo","width_inches":60,"depth_inches":30,"location":"Portland, OR"}
+}' "Uplift Standing Desk"
 
 echo ""
 echo "🔍 Step 3: Create buy orders"
